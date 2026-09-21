@@ -18,36 +18,70 @@ A daily (or otherwise scheduled) batch pipeline that:
 
 Result: A lightweight serving database that applications query for millisecond-latency, high-concurrency point lookups. The live table is never empty or half-updated.
 
-## Quick Start
+## Run It Locally
 
-1. Read the [Design Pattern](docs/design-pattern.md) to understand the architecture and why each phase is shaped the way it is
-2. Read the [walkthrough](examples/ecommerce_order_lookup_walkthrough.sql) — the same pattern as one linear SQL file, top to bottom
-3. Browse [`dags/`](dags/) and [`include/`](include/) — the same pattern laid out as an actual, config-driven Airflow project (real folder structure, real config files, one query per file)
-4. Adapt `dags/order_lookup_sample.py` and `include/` to your own warehouse, serving database, and business domain
+This repo is implementation-ready: clone it, install one requirements file, and the whole three-phase pipeline runs against real (synthetic) data — no cloud account, no server to start.
+
+```bash
+git clone <this-repo>
+cd data-warehouse-to-api
+pip install -r requirements.txt
+
+python -m pipeline.run                    # seeds sample data on first run, then runs all 3 phases
+python -m pipeline.lookup ORDER-00001     # point-lookup the result, like a real app would
+```
+
+`pipeline/run.py` seeds ~800 synthetic orders (with customers, line items, shipments, and support tickets) into a local `warehouse.duckdb` on first run, then executes Preflight → Build → Serve for real, landing the result in `serving.db`. Run it again and you'll see the atomic swap and two-cycle backup rotation happen for real. Run the tests to see the data-quality gate actually block bad data:
+
+```bash
+pytest tests/
+```
+
+**Why DuckDB and SQLite instead of BigQuery and Postgres?** Both are embedded — no server, no account, no credentials — so the pattern runs identically on your laptop and in CI. See [`include/README.md`](include/README.md) for the full reasoning and how each maps to its production equivalent.
+
+**Want to see it run under Airflow instead?** `dags/order_lookup_sample.py` is a thin wrapper that calls the exact same `pipeline/` functions from Airflow tasks — see [Reference: Airflow](#reference-airflow-orchestration) below. It's optional; nothing above requires it.
 
 ## Repository Map
 
-Every doc and example in this repo uses the **same fictional domain — an ecommerce order lookup** (`orders` as the driving domain, enriched with `customer_attributes`, `order_items`, `shipment`, and `customer_support`) — so nothing needs re-explaining as you move between files. Three views of one pattern, in increasing order of concreteness:
+Every doc and example in this repo uses the **same fictional domain — an ecommerce order lookup** (`orders` as the driving domain, enriched with `customer_attributes`, `order_items`, `shipment`, and `customer_support`) — so nothing needs re-explaining as you move between files.
 
 | Where | What it is | Read this when |
 |---|---|---|
-| [`docs/design-pattern.md`](docs/design-pattern.md) | The architecture explained in prose — the "why" behind each phase | You want to understand the pattern before writing any code |
-| [`examples/ecommerce_order_lookup_walkthrough.sql`](examples/ecommerce_order_lookup_walkthrough.sql) | One SQL file, Phase 1 → 2 → 3, read top to bottom | You want to see the whole flow in five minutes |
-| [`dags/`](dags/) + [`include/`](include/) | The same pattern as a real Airflow project layout — `dags/` holds the thin DAG file, `include/` holds config, SQL, and utils | You're about to build this for real and want a folder structure to copy |
-
-This repo follows the standard Airflow/Astronomer project layout: **DAG files live in `dags/` and nothing else does** — config, SQL, and shared code live in `include/`, which Airflow doesn't parse as DAGs. See [`include/README.md`](include/README.md) for why that split matters.
-
-There is **one config system**, defined in `include/config/dag_config.yaml` (what to build) and `infra_config.yaml` (how to connect) — see their inline comments and the [Config-Driven Parameters](docs/design-pattern.md#config-driven-parameters-not-hardcoded-literals) section of the design doc for the reasoning.
-
-Everything under `dags/` and `include/` is an **illustrative stub**, not working code — SQL bodies are 2–5 lines and Python functions are interfaces with `# TODO` markers. It shows you the shape to build, not a pipeline to copy-paste and run.
+| [`docs/design-pattern.md`](docs/design-pattern.md) | The architecture explained in prose — the "why" behind each phase, in production terms (BigQuery/Snowflake + Postgres) | You want to understand the pattern before writing any code |
+| [`examples/ecommerce_order_lookup_walkthrough.sql`](examples/ecommerce_order_lookup_walkthrough.sql) | One SQL file, Phase 1 → 2 → 3, read top to bottom, in the same production-flavored SQL as the design doc | You want to see the whole flow in five minutes |
+| [`pipeline/`](pipeline/) | **The real, runnable implementation** — DuckDB warehouse, SQLite serving DB, real Python, actually tested | You want to run the pattern and see it work |
+| [`dags/`](dags/) + [`include/`](include/) | The same real implementation, orchestrated by Airflow instead of `python -m pipeline.run` | You want to see how this maps onto a production orchestrator |
 
 ```
-dags/order_lookup_sample.py     ← the DAG (orchestration only)
+pipeline/            ← the real implementation (run this)
+├── config.py         loads include/config/*.yaml
+├── warehouse.py       DuckDB: dry-run validation, column introspection, execution
+├── serving_db.py       SQLite: staging, atomic swap + rotation, reconciliation
+├── preflight.py, build.py, serve.py    the three phases, real logic
+├── seed.py            synthetic data generator (Faker, deterministic)
+├── run.py             CLI: python -m pipeline.run
+└── lookup.py          CLI: python -m pipeline.lookup <order_id>
+
+dags/order_lookup_sample.py   ← thin Airflow wrapper calling the same pipeline/ functions
 include/
-├── config/                     ← dag_config.yaml + infra_config.yaml
-├── sql/ecommerce_orders/       ← one query per file, organized by phase
-└── utils/                      ← data-quality + serving-sync interfaces
-tests/dags/                     ← tests for the DAG
+├── config/             dag_config.yaml (what to build) + infra_config.yaml (how to connect)
+├── sql/ecommerce_orders/   one query per file — the SQL pipeline/ actually executes
+└── README.md           why dags/ + include/ are split, folder-by-folder tour
+
+tests/
+├── pipeline/           real end-to-end tests (temp DuckDB + SQLite, actually run the pipeline)
+└── dags/               structural checks on the DAG file and config/SQL alignment
+```
+
+There is **one config system** either way: `include/config/dag_config.yaml` (what to build) and `infra_config.yaml` (how to connect) — read by `pipeline/config.py` whether you run it standalone or under Airflow. See the [Config-Driven Parameters](docs/design-pattern.md#config-driven-parameters-not-hardcoded-literals) section of the design doc for the reasoning.
+
+## Reference: Airflow Orchestration
+
+`dags/order_lookup_sample.py` is not required to run this repo, but it's real, not illustrative: it imports `pipeline.preflight`, `pipeline.build`, and `pipeline.serve` directly and calls them from `PythonOperator` tasks, so it can't drift out of sync with the standalone runner. It needs `apache-airflow`, which is deliberately **not** in `requirements.txt` — install it separately if you want to try it:
+
+```bash
+pip install -r requirements.txt -r requirements-airflow.txt \
+  --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.11.txt"
 ```
 
 ## Key Features
@@ -96,7 +130,7 @@ Source tables (warehouse)
 
 - [Design Pattern](docs/design-pattern.md) — Complete technical guide
 - [Walkthrough](examples/ecommerce_order_lookup_walkthrough.sql) — Single-file, linear read of the full pattern
-- [Reference Pipeline](include/README.md) — The pattern as a real, config-driven Airflow project (`dags/` + `include/`)
+- [`include/README.md`](include/README.md) — Folder-by-folder tour of the real implementation and why DuckDB/SQLite stand in for BigQuery/Postgres
 - [Reliability Checklist](docs/reliability-checklist.md) — Pre-production validation
 
 ## Contributing

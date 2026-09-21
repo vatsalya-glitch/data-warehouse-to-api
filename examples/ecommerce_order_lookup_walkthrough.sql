@@ -2,12 +2,14 @@
 -- END-TO-END WALKTHROUGH: Ecommerce Order Lookup Pipeline
 -- ============================================================================
 --
--- This is a single-file, read-top-to-bottom version of the SAME pattern
--- implemented as separate files under dags/order_lookup_sample.py + include/.
+-- This is a single-file, read-top-to-bottom version of the pattern
+-- described in docs/design-pattern.md, in the same production-flavored
+-- SQL (BigQuery warehouse, Postgres serving DB) as that document.
 --
--- Read this file to understand the full flow in one sitting.
--- Read dags/ and include/ to see how it's organized as a real,
--- config-driven Airflow project (one query per file, wired by order_lookup_sample.py).
+-- This file is illustrative, not runnable -- for a REAL, runnable
+-- implementation of this exact pattern (DuckDB + SQLite, no external
+-- services, actually tested), see pipeline/ and include/sql/ instead.
+-- See include/README.md for why DuckDB/SQLite stand in for BigQuery/Postgres.
 --
 -- Domain (fictional, for illustration only):
 --   orders              — the "driving" table — defines which entities are in scope

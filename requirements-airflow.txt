@@ -1,0 +1,11 @@
+# Optional: only needed to actually run dags/order_lookup_sample.py under
+# a real Airflow scheduler. NOT required to run the pipeline itself --
+# `python -m pipeline.run` (requirements.txt alone) is the standalone path.
+#
+# Airflow pins itself to a constraints file per Python version; install
+# with something like:
+#   pip install -r requirements.txt -r requirements-airflow.txt \
+#     --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.11.txt"
+# (swap 3.11 for your Python version)
+
+apache-airflow==2.9.3

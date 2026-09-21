@@ -76,6 +76,7 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Config - keep example, ignore local configs
-config.yaml
-!config/config.example.yaml
+# Generated at runtime by pipeline/run.py -- the warehouse and serving DB
+# are built fresh from pipeline/seed.py, never committed
+*.duckdb
+serving.db

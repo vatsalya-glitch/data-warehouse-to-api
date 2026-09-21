@@ -12,4 +12,6 @@ COMMIT;
 -- Readers mid-query see either the old complete table or the new complete table,
 -- never a partial one.
 --
--- TODO: ensure this runs in one transaction on your database type
+-- Run via sqlite3.Connection.executescript() with isolation_level=None
+-- (see pipeline/serving_db.py) so the explicit BEGIN/COMMIT above controls
+-- the transaction, rather than Python's own implicit transaction handling.

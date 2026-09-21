@@ -1,156 +1,158 @@
 # Reference Pipeline: Ecommerce Order Lookup
 
-**Purpose**: This is a STRUCTURAL REFERENCE implementation, not a working pipeline. It demonstrates the three-phase pattern described in [`../docs/design-pattern.md`](../docs/design-pattern.md), laid out as an actual, config-driven Airflow project using the standard Astronomer/Airflow `dags/` + `include/` split.
+**Purpose**: This is the real, runnable implementation of the three-phase pattern described in [`../docs/design-pattern.md`](../docs/design-pattern.md) — clone the repo, `pip install -r requirements.txt`, and `python -m pipeline.run` actually executes it end to end. It uses the standard Astronomer/Airflow `dags/` + `include/` split, with the real Python logic in a third top-level package, `pipeline/`.
 
-**Example domain**: Ecommerce order lookup — fictional, used consistently across this whole repository. `orders` is the driving domain (it defines which entities are in scope); `customer_attributes`, `order_items`, `shipment`, and `customer_support` are enrichment domains LEFT JOINed onto it. Replace all business logic with real data.
+**Example domain**: Ecommerce order lookup — fictional, used consistently across this whole repository. `orders` is the driving domain (it defines which entities are in scope); `customer_attributes`, `order_items`, `shipment`, and `customer_support` are enrichment domains LEFT JOINed onto it.
 
-**Where this fits in the repo**: see the "Repository Map" in the [root README](../README.md) for how this concrete implementation relates to `docs/` (concept) and `examples/` (single-file walkthrough).
+**Where this fits in the repo**: see the "Repository Map" in the [root README](../README.md) for how this relates to `docs/` (concept) and `examples/` (single-file, production-flavored walkthrough).
 
-## Why `dags/` and `include/` are split
+## Why three top-level packages: `pipeline/`, `dags/`, `include/`
 
-This follows the standard Airflow project layout (the same shape `astro dev init` scaffolds): **`dags/` holds only DAG definition files** — thin, orchestration-only Python that Airflow's scheduler parses on every heartbeat. Everything the DAG *uses* — config, SQL, shared utility code — lives in **`include/`**, which Airflow does not parse as DAGs. This keeps DAG-parsing fast and keeps business logic out of the file the scheduler re-imports constantly.
+- **`pipeline/`** — the real logic. Python that talks to DuckDB (the warehouse) and SQLite (the serving DB). Runnable standalone with `python -m pipeline.run`; no orchestrator required.
+- **`dags/`** — a thin Airflow wrapper. `order_lookup_sample.py` imports `pipeline.preflight`, `pipeline.build`, `pipeline.serve` and calls them from `PythonOperator` tasks. It's the same shape `astro dev init` scaffolds: **DAG files live in `dags/` and nothing else does**, so Airflow's scheduler only ever re-parses thin orchestration code.
+- **`include/`** (this directory) — config and SQL, read by `pipeline/`, never parsed by Airflow as DAGs.
 
 ```
-dags/order_lookup_sample.py   ← the DAG: three builder functions, wired at the bottom
-include/                      ← everything the DAG reads
-├── config/                   ← what to build + how to connect
-├── sql/                      ← one query per file, organized by division
-└── utils/                    ← data-quality and serving-sync interfaces (stubs)
-tests/dags/                   ← tests for the DAG, mirroring dags/
+pipeline/                     ← the real implementation — run this
+├── warehouse.py, serving_db.py    DuckDB / SQLite connection wrappers
+├── preflight.py, build.py, serve.py    the three phases
+├── seed.py                    synthetic data generator
+├── run.py, lookup.py          CLI entrypoints
+
+dags/order_lookup_sample.py   ← thin Airflow wrapper around pipeline/ (optional)
+
+include/                      ← this directory: config + SQL, read by pipeline/
+├── config/                    what to build + how to connect
+└── sql/                       one query per file, organized by division
+
+tests/
+├── pipeline/                  real end-to-end tests (temp DuckDB + SQLite)
+└── dags/                      structural checks on the DAG file
 ```
+
+## Why DuckDB and SQLite
+
+The production target for this pattern is a real warehouse (BigQuery, Snowflake, Redshift) and a real serving database (Postgres, MySQL) — that's what `docs/design-pattern.md` and `examples/ecommerce_order_lookup_walkthrough.sql` describe. This implementation substitutes:
+
+- **DuckDB** for the warehouse — embedded, file-based, and close enough to BigQuery's SQL dialect that almost none of the query *shape* changes: it natively supports `QUALIFY`, window functions, and `CREATE OR REPLACE TABLE AS SELECT`.
+- **SQLite** for the serving database — embedded, stdlib (zero extra install), and deliberately a *different engine* from DuckDB. The whole point of the pattern is "the warehouse is wrong for point lookups, sync to something else" — making both sides DuckDB would erase that distinction. SQLite's `ALTER TABLE ... RENAME TO` makes the atomic-swap trick work exactly as documented.
+
+Both are zero-server: no account, no credentials, no `docker run`. `infra_config.yaml` marks each with a `production_equivalent` field for exactly this reason — it's documentation, not a switch; `pipeline/` only ever talks to DuckDB and SQLite.
 
 ## The Pattern in Three Phases
 
-### Phase 1: Preflight
-Run before any data writes. Validates schemas and catches mismatches early:
-1. Create or replace schema for every domain table (fresh start)
-2. Dry-run each domain INSERT query (validate types without scanning data)
-3. Check column coverage: fail if any column exists upstream but isn't wired into the final lookup
+### Phase 1: Preflight (`pipeline/preflight.py`)
+Runs before any real data is written:
+1. Runs each domain's DDL (`include/sql/.../warehouse/ddl/*.sql`) for real — but that only ever (re)creates an empty, schema-only placeholder table, never touches real data.
+2. Dry-runs each domain's SELECT (`EXPLAIN`, no data scanned) — catches a type/column mismatch immediately.
+3. Compares the DDL's declared columns against what the SELECT actually produces — schema drift between "what we said this looks like" and "what the query returns" fails loudly here.
+4. Coverage check: every column declared in a domain's DDL (except `_loaded_at`) must appear somewhere in the final lookup query's own SQL text — catching "a column was added to a domain but nobody wired it into the join." (This is a text-scan heuristic, documented as such in `preflight.py` — not full semantic analysis, but it catches the concrete failure mode it exists for.)
 
-**Result**: If any check fails, stop. Don't proceed to build phase.
+**Result**: any failure raises `PreflightError` before Phase 2 runs. Nothing has been touched yet, so there's nothing to roll back.
 
-### Phase 2: Build
-Run only after preflight passes. Assemble denormalized lookup:
-1. **Per division**: Build each domain table with TRUNCATE + INSERT (full refresh)
+### Phase 2: Build (`pipeline/build.py`)
+Runs only after preflight passes:
+1. Build each domain table with a full refresh: `CREATE OR REPLACE TABLE ... AS SELECT` (DuckDB's single-statement equivalent of TRUNCATE + INSERT).
    - `orders` (driving) — one row per order, defines scope
    - `customer_attributes` — customer profile, joins on `customer_id`
-   - `order_items` — line items, **aggregated** (not just deduped) to one row per `order_id`
+   - `order_items` — line items, **aggregated** (`GROUP BY`, not deduped) to one row per `order_id`
    - `shipment` — latest shipment status, joins on `order_id`
    - `customer_support` — open ticket summary, joins on `customer_id`
-2. **Data quality gate**: Check driving domain (`orders`) is non-empty, no duplicate `order_id`
-   - If DQ fails, stop here. Leave yesterday's lookup table in place (never overwrite with bad data)
-3. **Final assembly**: LEFT JOIN all four enrichment domains onto `orders`
-   - Result: one row per order, enriched with customer, items, shipment, and support context
+2. Data-quality gate: driving domain (`orders`) must be non-empty and have unique `order_id`. Raises `DataQualityError` if not — **the lookup table is never rebuilt on a bad run**, so a failure leaves yesterday's good lookup table in place.
+3. Final assembly: LEFT JOIN all four enrichment domains onto `orders`.
 
-**Result**: Complete, validated lookup table in warehouse. Never touches serving DB yet.
+**Result**: complete, validated `sample_lookup_current` table in the warehouse. Serving DB untouched so far.
 
-### Phase 3: Serve
-Run only after build passes. Sync to serving database, zero downtime:
-1. **Export** lookup table to object storage in shards (decouple export from import speed)
-2. **Import** shards in parallel into staging table in serving DB (never touch live table)
-3. **Build indexes** on staging table (after load, not before)
-4. **Atomic swap**: rename `staging_order_lookup` → `live_order_lookup` inside one transaction
-   - Catalog-only operation: zero downtime, live table never empty or half-updated
-5. **Reconcile**: compare warehouse row count to serving DB row count
-6. **Cleanup**: drop table from two cycles ago (keep one cycle for rollback safety)
+### Phase 3: Serve (`pipeline/serve.py`)
+Runs only after the DQ gate passes:
+1. Export the lookup table to a local Parquet file (`tmp/exports/` — "object storage" is a folder here instead of GCS/S3).
+2. Import it into a fresh `staging_order_lookup` table in SQLite (dropped and recreated each run).
+3. Build indexes on staging, after the bulk load.
+4. Atomic swap, with two-cycle rollback safety: drop the table from two cycles ago, demote the current backup to that slot, then rename `live_order_lookup` → `_old` and `staging_order_lookup` → `live_order_lookup` — all in one transaction (`pipeline/serving_db.py:rotate_and_swap`).
+5. Reconcile: compare warehouse and serving-DB row counts; warn (not fail — the swap already happened) if they diverge beyond tolerance.
 
-**Result**: Live table updated with zero downtime. Previous cycle kept for manual rollback.
+**Result**: `live_order_lookup` updated with zero downtime; `python -m pipeline.lookup <order_id>` queries it directly.
 
 ## Folder Layout
 
 Every file below actually exists — this list is generated to match the real tree, not aspirational.
 
 ```
-dags/
-└── order_lookup_sample.py                     # DAG: 3 builder functions, wired at the bottom
-
 include/
 ├── README.md                                  # This file
 ├── config/
 │   ├── dag_config.yaml                       # What to build (divisions, domain queries, thresholds)
-│   └── infra_config.yaml                     # How to connect (connection IDs, tunables)
-├── utils/
-│   ├── dq_utils.py                           # Data quality check interfaces (stubs)
-│   └── serving_sync_utils.py                 # Export/import/swap interfaces (stubs)
+│   └── infra_config.yaml                     # How to connect (DuckDB/SQLite paths, tunables)
 └── sql/ecommerce_orders/                      # One folder per division (see dag_config.yaml)
     ├── warehouse/
-    │   ├── ddl/
-    │   │   └── orders.sql                    # CREATE OR REPLACE — fresh schema, run in preflight
-    │   ├── domain/
-    │   │   ├── orders.sql                    # TRUNCATE + INSERT — driving domain
-    │   │   ├── customer_attributes.sql       # TRUNCATE + INSERT — enrichment, joins on customer_id
-    │   │   ├── order_items.sql               # TRUNCATE + INSERT — enrichment, GROUP BY to order grain
-    │   │   ├── shipment.sql                  # TRUNCATE + INSERT — enrichment, joins on order_id
-    │   │   └── customer_support.sql          # TRUNCATE + INSERT — enrichment, joins on customer_id
+    │   ├── ddl/                               # Schema CONTRACTS — read by preflight, never run as "the build"
+    │   │   ├── orders.sql
+    │   │   ├── customer_attributes.sql
+    │   │   ├── order_items.sql
+    │   │   ├── shipment.sql
+    │   │   └── customer_support.sql
+    │   ├── domain/                            # CREATE OR REPLACE TABLE AS SELECT — the real build queries
+    │   │   ├── orders.sql
+    │   │   ├── customer_attributes.sql
+    │   │   ├── order_items.sql
+    │   │   ├── shipment.sql
+    │   │   └── customer_support.sql
     │   ├── lookup/
     │   │   └── ecommerce_orders_lookup.sql   # Final LEFT JOIN assembly (all 5 domains)
     │   └── dq/
-    │       └── dq_lookup.sql                 # Non-empty + unique-order_id assertion
+    │       └── dq_lookup.sql                 # Non-empty + unique-order_id assertion (documents the check;
+    │                                          # pipeline/build.py implements the parameterized version)
     └── serving_db/
         ├── ddl/
         │   └── serving_ddl.sql               # live_order_lookup schema (created once)
         └── sync/
             ├── create_staging_table.sql      # Fresh staging table, dropped/recreated each run
-            ├── export_lookup_to_object_storage.sql  # Sharded export from warehouse
-            ├── swap_staging_to_live.sql      # Atomic rename swap
-            └── drop_old_table.sql            # Drop the table from two cycles ago
-
-tests/dags/
-└── test_order_lookup_sample.py                # Tests the DAG file + validates config/SQL paths line up
+            ├── export_lookup_to_object_storage.sql  # Runs against the WAREHOUSE connection (DuckDB COPY)
+            ├── swap_staging_to_live.sql      # Documents the atomic swap; pipeline/serving_db.py implements
+            │                                  # the full version with existence checks (see rotate_and_swap)
+            └── drop_old_table.sql            # Documents cleanup; folded into rotate_and_swap too
 ```
-
-**Note**: only `orders.sql` has a DDL file under `warehouse/ddl/` in this reference — a real project would have one DDL file per domain table (`customer_attributes.sql`, `order_items.sql`, `shipment.sql`, `customer_support.sql` too). This is a deliberate gap left in the reference: it's the same file shape repeated four more times, so one example stands for all five.
 
 **Two flattening techniques, side by side**: `customer_attributes`, `shipment`, and `customer_support` collapse to one row per key with `QUALIFY ROW_NUMBER() ... = 1` (pick the latest record). `order_items` is naturally many rows per order, so it collapses with `GROUP BY order_id` (aggregate the children) instead — see the comment at the top of `order_items.sql` for why the technique differs.
 
 ## Config-Driven: No Python Code Changes to Add Data
 
 **To add a new domain query:**
-1. Edit `include/config/dag_config.yaml`: add query file path to `domain_queries`
-2. Create the SQL file under `include/sql/<division>/` with TRUNCATE + INSERT logic
+1. Edit `include/config/dag_config.yaml`: add the query file path to `domain_queries`, and add a matching DDL file under `warehouse/ddl/`
+2. Create the SQL file under `include/sql/<division>/warehouse/domain/`
 
-**To change business parameter (e.g., lookback window):**
+**To change a business parameter (e.g., lookback window):**
 1. Edit `include/config/dag_config.yaml`: change `rolling_window_days`
-2. DAG reads this value and injects it into all domain queries as `{rolling_window_days}`
+2. `pipeline/build.py` reads this value and injects it into every domain query as `{rolling_window_days}`
 
 **To change connection or tuning:**
-1. Edit `include/config/infra_config.yaml`: warehouse connection ID, serving DB concurrency, etc.
+1. Edit `include/config/infra_config.yaml`: DuckDB/SQLite paths, import concurrency, indexes, etc.
 
-No changes to `dags/order_lookup_sample.py` needed. The DAG file stays stable as data grows.
+No changes to `pipeline/*.py` or `dags/order_lookup_sample.py` needed for any of the above — both read the same two config files at runtime.
 
 ## Key Design Decisions (Why This Shape?)
 
 | Decision | Alternative | Why? |
 |----------|-----------|------|
-| `dags/` + `include/` split | SQL and config alongside the DAG file | Matches the standard Airflow project layout; keeps the DAG-parsing file thin |
-| Full refresh (TRUNCATE + INSERT) | Incremental/MERGE | Simpler correctness story; reprocess bounded window each run |
-| Three hard gates (preflight → build → serve) | Single long DAG | Fail early before writes; each phase is independently verifiable |
-| Config-driven parameters | Hardcoded in SQL | One place to change; prevents drift across files |
+| `pipeline/` + `dags/` + `include/` split | One monolithic script | `pipeline/` runs standalone (no orchestrator needed) and is what `dags/` calls — the DAG can't drift out of sync with what actually runs |
+| DuckDB (warehouse) + SQLite (serving) | Two DuckDB files | Different engines for different jobs is the whole point of the pattern; collapsing them into one engine would erase that distinction |
+| Full refresh (`CREATE OR REPLACE TABLE AS SELECT`) | Incremental/MERGE | Simpler correctness story; reprocess bounded window each run |
+| Three hard gates (preflight → build → serve) | Single long script | Fail early before writes; each phase is independently testable (see `tests/pipeline/`) |
+| DDL files as schema *contracts*, checked by preflight | No separate schema declaration | Catches drift between "what we said this table looks like" and what the query actually returns, before any real data moves |
 | LEFT JOIN from driving domain (`orders`) | INNER JOIN all domains | An order with no shipment record yet still appears in the lookup, with null shipment fields, instead of vanishing |
 | GROUP BY for `order_items`, QUALIFY for the rest | One dedup technique everywhere | The right collapse strategy depends on whether the source is naturally many-to-one (aggregate) or one-of-many-versions (pick latest) |
-| Atomic rename swap | TRUNCATE + re-insert | Zero downtime; live table never empty or half-updated |
-| Keep previous table one cycle | No backup | Manual rollback safety net if swap is bad |
-
-## To Use This as a Reference
-
-1. **Read** `dags/order_lookup_sample.py` to understand the three builder functions (preflight, build, serve)
-2. **Read** `include/config/dag_config.yaml` and `infra_config.yaml` to see how parameters flow
-3. **Scan** the SQL stubs under `include/sql/` to see query SHAPE (TRUNCATE, QUALIFY, GROUP BY, LEFT JOIN, atomic swap)
-4. **Read** `include/utils/dq_utils.py` and `serving_sync_utils.py` to see interfaces
-5. **Replace TODO comments** with real logic for your warehouse, serving DB, and business domain
-
-This is a **structural template**, not a working implementation.
+| Atomic rename swap with two-cycle rotation | TRUNCATE + re-insert | Zero downtime; live table never empty or half-updated; one prior cycle always available for manual rollback |
 
 ## Notes
 
-- All SQL queries are illustrative stubs (2-5 lines each) showing SHAPE, not real business logic
-- All Python functions have TODO comments marking where to replace with real code
 - Example domain is fictional (ecommerce order lookup) to avoid confusion with real tables
-- No credentials, project IDs, or real hostnames (use config files instead)
+- No credentials, project IDs, or real hostnames — `infra_config.yaml` holds local file paths instead
 - This demonstrates ONE division/entity type; scale to multiple divisions by adding entries under `division:` in `dag_config.yaml`
+- `pipeline/seed.py` is deterministic (fixed random seed) so re-running produces the same synthetic dataset shape, useful for tests and for reproducing a specific scenario
 
 ## See Also
 
-- **[`../docs/design-pattern.md`](../docs/design-pattern.md)** — Full architecture rationale (the "why" behind every phase here)
-- **[`../examples/ecommerce_order_lookup_walkthrough.sql`](../examples/ecommerce_order_lookup_walkthrough.sql)** — The same pattern as one linear SQL file, same domain, easier to read start-to-finish
+- **[`../docs/design-pattern.md`](../docs/design-pattern.md)** — Full architecture rationale, in production terms (the "why" behind every phase here)
+- **[`../examples/ecommerce_order_lookup_walkthrough.sql`](../examples/ecommerce_order_lookup_walkthrough.sql)** — The same pattern as one linear, production-flavored SQL file
 - **[`../docs/reliability-checklist.md`](../docs/reliability-checklist.md)** — Pre-production validation checklist
+- **[`../tests/pipeline/test_pipeline.py`](../tests/pipeline/test_pipeline.py)** — Real tests: schema drift detection, DQ gate blocking bad data, atomic swap rotation

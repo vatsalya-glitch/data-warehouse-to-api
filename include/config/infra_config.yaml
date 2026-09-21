@@ -1,35 +1,40 @@
-# Infrastructure Configuration: Connection IDs, tunables, credentials
+# Infrastructure Configuration: Connection info, tunables.
 # All connection strings and resource names live here, not in code or SQL.
+#
+# This repo's runnable implementation uses DuckDB as the warehouse and
+# SQLite as the serving database -- both embedded, no server to run --
+# so the pipeline works with nothing installed beyond requirements.txt.
+# In production this pattern targets a real warehouse (BigQuery, Snowflake,
+# Redshift) and a real serving database (Postgres, MySQL); see
+# docs/design-pattern.md and dags/order_lookup_sample.py (the Airflow
+# reference) for that framing. `type` and `production_equivalent` below
+# are documentation, not switches -- pipeline/ only ever talks to DuckDB
+# and SQLite.
 
 warehouse:
-  # Airflow connection ID for warehouse (set up in Airflow UI)
-  connection_id: warehouse_default
-  # TODO: replace with real warehouse type (bigquery, snowflake, etc.)
-  type: bigquery
-  project_id: sample-warehouse-project
-  dataset_id: sample_orders
+  type: duckdb
+  production_equivalent: bigquery  # or snowflake, redshift, etc.
+  duckdb_path: warehouse.duckdb
 
 object_storage:
-  # Where to export lookup tables for import into serving DB
-  bucket: ecommerce-order-lookup-sample-exports
-  export_folder: ecommerce_orders/exports
-  # File format for exports (parquet or csv)
+  # In production, export shards go to GCS/S3 to decouple export speed
+  # from import speed. Locally, "object storage" is just a folder.
+  production_equivalent: gcs_or_s3
+  export_dir: tmp/exports
   export_format: parquet
 
 serving_db:
-  # Airflow connection ID for serving database
-  connection_id: serving_db_default
-  # TODO: replace with real database type (postgres, mysql, etc.)
-  type: postgres
-  host: serving-db.example.internal
-  port: 5432
-  database: sample_lookups
+  type: sqlite
+  production_equivalent: postgres
+  sqlite_path: serving.db
 
-  # Import tuning: concurrent shard imports
+  # Import tuning: concurrent shard imports.
+  # SQLite writes are single-writer, so this pipeline imports shards
+  # sequentially regardless of this value -- it's kept here because a
+  # real Postgres target would honor it (see include/README.md).
   import_max_concurrency: 2
-  # TODO: set based on serving DB's sustainable load
 
-  # Indexes to build on staging table (after bulk load)
+  # Indexes to build on staging table (after bulk load, not before)
   staging_indexes:
     - name: idx_order_lookup_staging_order_id
       unique: true

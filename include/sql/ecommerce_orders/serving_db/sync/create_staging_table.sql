@@ -1,7 +1,9 @@
 -- Phase 3: Create staging table (fresh, empty schema)
--- Dropped and recreated each run, never touches live table
+-- Dropped and recreated each run, never touches live table.
+-- (SQLite has no CASCADE on DROP TABLE — unlike Postgres, there's no
+-- dependent-object cleanup needed since we don't use foreign keys here.)
 
-DROP TABLE IF EXISTS staging_order_lookup CASCADE;
+DROP TABLE IF EXISTS staging_order_lookup;
 
 CREATE TABLE staging_order_lookup (
     order_id           VARCHAR(255) PRIMARY KEY,
@@ -18,10 +20,9 @@ CREATE TABLE staging_order_lookup (
     distinct_products  INTEGER,
     carrier            VARCHAR(100),
     tracking_number    VARCHAR(100),
+    ship_date          DATE,
     delivery_status    VARCHAR(50),
     open_ticket_count  INTEGER,
     last_ticket_date   TIMESTAMP,
     _loaded_at         TIMESTAMP
 );
-
--- TODO: replace with real schema (should match live_order_lookup exactly)

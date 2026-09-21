@@ -14,14 +14,17 @@ schedule_interval: "0 2 * * *"  # 2 AM UTC daily
 division:
   ecommerce_orders:
     # Domain queries that build intermediate tables
-    # TRUNCATE + INSERT strategy: full refresh each run
-    # "orders" is the driving domain; the other four are LEFT JOINed onto it
+    # Full refresh strategy each run (CREATE OR REPLACE TABLE AS SELECT)
     domain_queries:
       - warehouse/domain/orders.sql
       - warehouse/domain/customer_attributes.sql
       - warehouse/domain/order_items.sql
       - warehouse/domain/shipment.sql
       - warehouse/domain/customer_support.sql
+
+    # Which domain defines "this entity is in scope" for the lookup.
+    # Every other domain LEFT JOINs onto this one's table (sample_<driving_domain>).
+    driving_domain: orders
 
     # Final lookup assembly: joins all domains together
     lookup_query: warehouse/lookup/ecommerce_orders_lookup.sql

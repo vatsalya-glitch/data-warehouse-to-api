@@ -1,14 +1,16 @@
 -- Phase 3: Export the finished lookup table to object storage, sharded.
--- Illustrative BigQuery EXPORT DATA statement — decouples export speed
--- from import speed, and lets import run in parallel shards.
+-- Runs against the WAREHOUSE connection (DuckDB), even though it's grouped
+-- here under serving_db/sync/ since it's conceptually part of the
+-- serving-sync process. Decouples export speed from import speed.
+--
+-- Locally, "object storage" is a folder (include/config/infra_config.yaml
+-- -> object_storage.export_dir) instead of GCS/S3 — see include/README.md.
+-- {export_path} is substituted by pipeline/serve.py.
 
-EXPORT DATA OPTIONS (
-    uri = 'gs://ecommerce-order-lookup-sample-exports/ecommerce_orders/shard_*.parquet',
-    format = 'PARQUET',
-    overwrite = true
-) AS
-SELECT *
-FROM staging.sample_lookup_current;
+COPY sample_lookup_current TO '{export_path}' (FORMAT PARQUET);
 
--- TODO: replace with real lookup table name and real bucket
--- TODO: tune shard count / max file size for your row volume
+-- In production, at real row volumes, this would write multiple shard
+-- files (e.g. one per N rows) for parallel import. This reference writes
+-- a single Parquet file since the local sample data is small enough that
+-- sharding wouldn't demonstrate anything — the import step is still
+-- written to loop over "however many shard files exist."

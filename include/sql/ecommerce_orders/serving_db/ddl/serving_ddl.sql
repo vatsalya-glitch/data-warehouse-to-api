@@ -1,5 +1,6 @@
--- Serving database DDL: Live lookup table
--- Created once; reused across all runs
+-- Serving database (SQLite) DDL: Live lookup table
+-- Created once; reused across all runs. Matches
+-- warehouse/lookup/ecommerce_orders_lookup.sql column-for-column.
 
 CREATE TABLE IF NOT EXISTS live_order_lookup (
     order_id           VARCHAR(255) PRIMARY KEY,
@@ -16,10 +17,12 @@ CREATE TABLE IF NOT EXISTS live_order_lookup (
     distinct_products  INTEGER,
     carrier            VARCHAR(100),
     tracking_number    VARCHAR(100),
+    ship_date          DATE,
     delivery_status    VARCHAR(50),
     open_ticket_count  INTEGER,
     last_ticket_date   TIMESTAMP,
     _loaded_at         TIMESTAMP
 );
 
--- TODO: replace with real schema matching final lookup query
+-- Run once by pipeline/serving_db.py on first use (CREATE TABLE IF NOT
+-- EXISTS is idempotent, so re-running the pipeline never fails on this).

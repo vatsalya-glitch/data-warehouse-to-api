@@ -144,5 +144,8 @@ It's a poor fit when: the application needs near-real-time freshness (this calls
 
 ## Seeing it as code
 
-- [`../examples/ecommerce_order_lookup_walkthrough.sql`](../examples/ecommerce_order_lookup_walkthrough.sql) — every phase above, as one SQL file, read top to bottom
-- [`../dags/`](../dags/) + [`../include/`](../include/) — the same pattern laid out as a real, config-driven Airflow project (one query per file, wired by `order_lookup_sample.py`)
+This document describes the pattern in production terms (BigQuery/Snowflake + Postgres). The repo also has a real, runnable implementation you can clone and execute — it substitutes DuckDB and SQLite so it runs locally with no external services; see [`../include/README.md`](../include/README.md) for that substitution and why it doesn't change the pattern.
+
+- [`../examples/ecommerce_order_lookup_walkthrough.sql`](../examples/ecommerce_order_lookup_walkthrough.sql) — every phase above, as one SQL file, read top to bottom, in the same production-flavored SQL as this document
+- [`../pipeline/`](../pipeline/) — the real implementation: `python -m pipeline.run` actually executes all three phases against synthetic data
+- [`../dags/`](../dags/) + [`../include/`](../include/) — the same real implementation, orchestrated by Airflow instead (`dags/order_lookup_sample.py` calls the same `pipeline/` functions)

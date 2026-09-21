@@ -29,15 +29,22 @@ Describe:
 ### Setup
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_GITHUB_USERNAME/data-warehouse-to-api.git`
-3. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Install dependencies and run the pipeline once to confirm your environment works:
+   ```bash
+   pip install -r requirements.txt
+   python -m pipeline.run
+   pytest tests/
+   ```
+4. Create a feature branch: `git checkout -b feature/your-feature-name`
 
 ### Code Style
-- **SQL**: Follow the conventions in `examples/ecommerce_order_lookup_walkthrough.sql` — uppercase keywords, clear indentation
-- **Python/Other**: Follow PEP 8 and project conventions
+- **SQL**: Follow the conventions in `include/sql/ecommerce_orders/` (real, DuckDB/SQLite-dialect queries) or `examples/ecommerce_order_lookup_walkthrough.sql` (production-flavored, BigQuery/Postgres dialect) depending on which you're touching — uppercase keywords, clear indentation
+- **Python**: Follow PEP 8 and project conventions; keep business logic in `pipeline/`, not in `dags/order_lookup_sample.py` (which should only ever call `pipeline/` functions)
 - **Docs**: Keep examples and documentation up-to-date with code changes
 
 ### Testing
-- If adding SQL examples, test against a sample warehouse/database setup
+- `pytest tests/` runs real end-to-end tests against temporary DuckDB + SQLite files (never the real `warehouse.duckdb`/`serving.db`) — run this before opening a PR
+- If you change a SQL file under `include/sql/`, run `python -m pipeline.run` to confirm it against real (seeded) data, not just `pytest`
 - If modifying documentation, check that links and references still work
 - For new features, update the reliability checklist if applicable
 

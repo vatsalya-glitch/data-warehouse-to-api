@@ -1,10 +1,15 @@
-# Illustrative only — this repo is a structural reference, not a deployable
-# pipeline (see include/README.md). A real Astronomer/Airflow project pins
-# exact versions here; this lists what the stub code imports.
+# Everything needed to actually run the pipeline locally:
+#   pip install -r requirements.txt
+#   python -m pipeline.run
+#   python -m pipeline.lookup ORDER-00001
+#
+# No external services required -- DuckDB and SQLite are both embedded.
+# apache-airflow is intentionally NOT here: see requirements-airflow.txt.
 
-apache-airflow>=2.7
+duckdb>=1.0
+pandas>=2.0
 pyyaml>=6.0
+faker>=20.0
 
-# A real implementation would add its warehouse and serving-DB clients, e.g.:
-#   google-cloud-bigquery
-#   psycopg2-binary
+# Testing
+pytest>=7.0
