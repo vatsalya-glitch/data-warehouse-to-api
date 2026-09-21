@@ -1,10 +1,23 @@
 # Reference Pipeline: Ecommerce Order Lookup
 
-**Purpose**: This is a STRUCTURAL REFERENCE implementation, not a working pipeline. It demonstrates the three-phase pattern described in [`../../docs/design-pattern.md`](../../docs/design-pattern.md), laid out as an actual, config-driven Airflow project.
+**Purpose**: This is a STRUCTURAL REFERENCE implementation, not a working pipeline. It demonstrates the three-phase pattern described in [`../docs/design-pattern.md`](../docs/design-pattern.md), laid out as an actual, config-driven Airflow project using the standard Astronomer/Airflow `dags/` + `include/` split.
 
 **Example domain**: Ecommerce order lookup — fictional, used consistently across this whole repository. `orders` is the driving domain (it defines which entities are in scope); `customer_attributes`, `order_items`, `shipment`, and `customer_support` are enrichment domains LEFT JOINed onto it. Replace all business logic with real data.
 
-**Where this fits in the repo**: see the "Repository Map" in the [root README](../../README.md) for how this concrete implementation relates to `docs/` (concept) and `examples/` (single-file walkthrough).
+**Where this fits in the repo**: see the "Repository Map" in the [root README](../README.md) for how this concrete implementation relates to `docs/` (concept) and `examples/` (single-file walkthrough).
+
+## Why `dags/` and `include/` are split
+
+This follows the standard Airflow project layout (the same shape `astro dev init` scaffolds): **`dags/` holds only DAG definition files** — thin, orchestration-only Python that Airflow's scheduler parses on every heartbeat. Everything the DAG *uses* — config, SQL, shared utility code — lives in **`include/`**, which Airflow does not parse as DAGs. This keeps DAG-parsing fast and keeps business logic out of the file the scheduler re-imports constantly.
+
+```
+dags/order_lookup_sample.py   ← the DAG: three builder functions, wired at the bottom
+include/                      ← everything the DAG reads
+├── config/                   ← what to build + how to connect
+├── sql/                      ← one query per file, organized by division
+└── utils/                    ← data-quality and serving-sync interfaces (stubs)
+tests/dags/                   ← tests for the DAG, mirroring dags/
+```
 
 ## The Pattern in Three Phases
 
@@ -45,18 +58,21 @@ Run only after build passes. Sync to serving database, zero downtime:
 
 ## Folder Layout
 
-Every file below actually exists in this directory — this list is generated to match the real tree, not aspirational.
+Every file below actually exists — this list is generated to match the real tree, not aspirational.
 
 ```
-dags/order_lookup_sample/
+dags/
+└── order_lookup_sample.py                     # DAG: 3 builder functions, wired at the bottom
+
+include/
 ├── README.md                                  # This file
-├── main.py                                    # DAG: 3 builder functions, wired at the bottom
-├── dag_config.yaml                            # What to build (divisions, domain queries, thresholds)
-├── infra_config.yaml                          # How to connect (connection IDs, tunables)
+├── config/
+│   ├── dag_config.yaml                       # What to build (divisions, domain queries, thresholds)
+│   └── infra_config.yaml                     # How to connect (connection IDs, tunables)
 ├── utils/
 │   ├── dq_utils.py                           # Data quality check interfaces (stubs)
 │   └── serving_sync_utils.py                 # Export/import/swap interfaces (stubs)
-└── domains/ecommerce_orders/                  # One folder per division (see dag_config.yaml)
+└── sql/ecommerce_orders/                      # One folder per division (see dag_config.yaml)
     ├── warehouse/
     │   ├── ddl/
     │   │   └── orders.sql                    # CREATE OR REPLACE — fresh schema, run in preflight
@@ -79,8 +95,8 @@ dags/order_lookup_sample/
             ├── swap_staging_to_live.sql      # Atomic rename swap
             └── drop_old_table.sql            # Drop the table from two cycles ago
 
-tests/order_lookup_sample/
-└── test_dag_structure.py                      # Placeholder test file
+tests/dags/
+└── test_order_lookup_sample.py                # Tests the DAG file + validates config/SQL paths line up
 ```
 
 **Note**: only `orders.sql` has a DDL file under `warehouse/ddl/` in this reference — a real project would have one DDL file per domain table (`customer_attributes.sql`, `order_items.sql`, `shipment.sql`, `customer_support.sql` too). This is a deliberate gap left in the reference: it's the same file shape repeated four more times, so one example stands for all five.
@@ -90,22 +106,23 @@ tests/order_lookup_sample/
 ## Config-Driven: No Python Code Changes to Add Data
 
 **To add a new domain query:**
-1. Edit `dag_config.yaml`: add query file path to `domain_queries`
-2. Create SQL file with TRUNCATE + INSERT logic
+1. Edit `include/config/dag_config.yaml`: add query file path to `domain_queries`
+2. Create the SQL file under `include/sql/<division>/` with TRUNCATE + INSERT logic
 
 **To change business parameter (e.g., lookback window):**
-1. Edit `dag_config.yaml`: change `rolling_window_days`
+1. Edit `include/config/dag_config.yaml`: change `rolling_window_days`
 2. DAG reads this value and injects it into all domain queries as `{rolling_window_days}`
 
 **To change connection or tuning:**
-1. Edit `infra_config.yaml`: warehouse connection ID, serving DB concurrency, etc.
+1. Edit `include/config/infra_config.yaml`: warehouse connection ID, serving DB concurrency, etc.
 
-No Python changes needed. The DAG code stays stable as data grows.
+No changes to `dags/order_lookup_sample.py` needed. The DAG file stays stable as data grows.
 
 ## Key Design Decisions (Why This Shape?)
 
 | Decision | Alternative | Why? |
 |----------|-----------|------|
+| `dags/` + `include/` split | SQL and config alongside the DAG file | Matches the standard Airflow project layout; keeps the DAG-parsing file thin |
 | Full refresh (TRUNCATE + INSERT) | Incremental/MERGE | Simpler correctness story; reprocess bounded window each run |
 | Three hard gates (preflight → build → serve) | Single long DAG | Fail early before writes; each phase is independently verifiable |
 | Config-driven parameters | Hardcoded in SQL | One place to change; prevents drift across files |
@@ -116,10 +133,10 @@ No Python changes needed. The DAG code stays stable as data grows.
 
 ## To Use This as a Reference
 
-1. **Read** `main.py` to understand the three builder functions (preflight, build, serve)
-2. **Read** `dag_config.yaml` and `infra_config.yaml` to see how parameters flow
-3. **Scan** the SQL stubs under `domains/` to see query SHAPE (TRUNCATE, QUALIFY, GROUP BY, LEFT JOIN, atomic swap)
-4. **Read** `utils/dq_utils.py` and `utils/serving_sync_utils.py` to see interfaces
+1. **Read** `dags/order_lookup_sample.py` to understand the three builder functions (preflight, build, serve)
+2. **Read** `include/config/dag_config.yaml` and `infra_config.yaml` to see how parameters flow
+3. **Scan** the SQL stubs under `include/sql/` to see query SHAPE (TRUNCATE, QUALIFY, GROUP BY, LEFT JOIN, atomic swap)
+4. **Read** `include/utils/dq_utils.py` and `serving_sync_utils.py` to see interfaces
 5. **Replace TODO comments** with real logic for your warehouse, serving DB, and business domain
 
 This is a **structural template**, not a working implementation.
@@ -134,6 +151,6 @@ This is a **structural template**, not a working implementation.
 
 ## See Also
 
-- **[`../../docs/design-pattern.md`](../../docs/design-pattern.md)** — Full architecture rationale (the "why" behind every phase here)
-- **[`../../examples/ecommerce_order_lookup_walkthrough.sql`](../../examples/ecommerce_order_lookup_walkthrough.sql)** — The same pattern as one linear SQL file, same domain, easier to read start-to-finish
-- **[`../../docs/reliability-checklist.md`](../../docs/reliability-checklist.md)** — Pre-production validation checklist
+- **[`../docs/design-pattern.md`](../docs/design-pattern.md)** — Full architecture rationale (the "why" behind every phase here)
+- **[`../examples/ecommerce_order_lookup_walkthrough.sql`](../examples/ecommerce_order_lookup_walkthrough.sql)** — The same pattern as one linear SQL file, same domain, easier to read start-to-finish
+- **[`../docs/reliability-checklist.md`](../docs/reliability-checklist.md)** — Pre-production validation checklist

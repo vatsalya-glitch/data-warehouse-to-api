@@ -22,8 +22,8 @@ Result: A lightweight serving database that applications query for millisecond-l
 
 1. Read the [Design Pattern](docs/design-pattern.md) to understand the architecture and why each phase is shaped the way it is
 2. Read the [walkthrough](examples/ecommerce_order_lookup_walkthrough.sql) — the same pattern as one linear SQL file, top to bottom
-3. Browse [`dags/order_lookup_sample/`](dags/order_lookup_sample/) — the same pattern laid out as an actual, config-driven Airflow project (real folder structure, real config files, one query per file)
-4. Adapt `dags/order_lookup_sample/` to your own warehouse, serving database, and business domain
+3. Browse [`dags/`](dags/) and [`include/`](include/) — the same pattern laid out as an actual, config-driven Airflow project (real folder structure, real config files, one query per file)
+4. Adapt `dags/order_lookup_sample.py` and `include/` to your own warehouse, serving database, and business domain
 
 ## Repository Map
 
@@ -33,11 +33,22 @@ Every doc and example in this repo uses the **same fictional domain — an ecomm
 |---|---|---|
 | [`docs/design-pattern.md`](docs/design-pattern.md) | The architecture explained in prose — the "why" behind each phase | You want to understand the pattern before writing any code |
 | [`examples/ecommerce_order_lookup_walkthrough.sql`](examples/ecommerce_order_lookup_walkthrough.sql) | One SQL file, Phase 1 → 2 → 3, read top to bottom | You want to see the whole flow in five minutes |
-| [`dags/order_lookup_sample/`](dags/order_lookup_sample/) | The same pattern as a real project layout — config files, one SQL file per query, an Airflow DAG that wires them together | You're about to build this for real and want a folder structure to copy |
+| [`dags/`](dags/) + [`include/`](include/) | The same pattern as a real Airflow project layout — `dags/` holds the thin DAG file, `include/` holds config, SQL, and utils | You're about to build this for real and want a folder structure to copy |
 
-There is **one config system**, defined in `dags/order_lookup_sample/dag_config.yaml` (what to build) and `infra_config.yaml` (how to connect) — see their inline comments and the [Config-Driven Parameters](docs/design-pattern.md#config-driven-parameters-not-hardcoded-literals) section of the design doc for the reasoning.
+This repo follows the standard Airflow/Astronomer project layout: **DAG files live in `dags/` and nothing else does** — config, SQL, and shared code live in `include/`, which Airflow doesn't parse as DAGs. See [`include/README.md`](include/README.md) for why that split matters.
 
-Everything under `dags/order_lookup_sample/` is an **illustrative stub**, not working code — SQL bodies are 2–5 lines and Python functions are interfaces with `# TODO` markers. It shows you the shape to build, not a pipeline to copy-paste and run.
+There is **one config system**, defined in `include/config/dag_config.yaml` (what to build) and `infra_config.yaml` (how to connect) — see their inline comments and the [Config-Driven Parameters](docs/design-pattern.md#config-driven-parameters-not-hardcoded-literals) section of the design doc for the reasoning.
+
+Everything under `dags/` and `include/` is an **illustrative stub**, not working code — SQL bodies are 2–5 lines and Python functions are interfaces with `# TODO` markers. It shows you the shape to build, not a pipeline to copy-paste and run.
+
+```
+dags/order_lookup_sample.py     ← the DAG (orchestration only)
+include/
+├── config/                     ← dag_config.yaml + infra_config.yaml
+├── sql/ecommerce_orders/       ← one query per file, organized by phase
+└── utils/                      ← data-quality + serving-sync interfaces
+tests/dags/                     ← tests for the DAG
+```
 
 ## Key Features
 
@@ -85,7 +96,7 @@ Source tables (warehouse)
 
 - [Design Pattern](docs/design-pattern.md) — Complete technical guide
 - [Walkthrough](examples/ecommerce_order_lookup_walkthrough.sql) — Single-file, linear read of the full pattern
-- [Reference Pipeline](dags/order_lookup_sample/) — The pattern as a real, config-driven Airflow project
+- [Reference Pipeline](include/README.md) — The pattern as a real, config-driven Airflow project (`dags/` + `include/`)
 - [Reliability Checklist](docs/reliability-checklist.md) — Pre-production validation
 
 ## Contributing

@@ -3,11 +3,11 @@
 -- ============================================================================
 --
 -- This is a single-file, read-top-to-bottom version of the SAME pattern
--- implemented as separate files under dags/order_lookup_sample/.
+-- implemented as separate files under dags/order_lookup_sample.py + include/.
 --
 -- Read this file to understand the full flow in one sitting.
--- Read dags/order_lookup_sample/ to see how it's organized as a real,
--- config-driven Airflow project (one query per file, wired by main.py).
+-- Read dags/ and include/ to see how it's organized as a real,
+-- config-driven Airflow project (one query per file, wired by order_lookup_sample.py).
 --
 -- Domain (fictional, for illustration only):
 --   orders              — the "driving" table — defines which entities are in scope
@@ -26,7 +26,7 @@
 -- ============================================================================
 
 -- 1.1 Fresh schema for every domain table (CREATE OR REPLACE, not written by hand
---     each run — see dags/order_lookup_sample/domains/.../warehouse/ddl/)
+--     each run — see include/sql/.../warehouse/ddl/)
 CREATE OR REPLACE TABLE staging.sample_orders (
     order_id     STRING,
     customer_id  STRING,
@@ -37,7 +37,7 @@ CREATE OR REPLACE TABLE staging.sample_orders (
 
 -- 1.2 Dry-run the domain INSERT query against that fresh schema.
 --     BigQuery: jobConfig.dryRun = true — validates types/columns, scans nothing.
---     (See dags/order_lookup_sample/utils/dq_utils.py: validate_insert_schema)
+--     (See include/utils/dq_utils.py: validate_insert_schema)
 SELECT * FROM (
     -- the real INSERT's SELECT body goes here
     SELECT order_id, customer_id, order_date, order_status, total_amount
@@ -99,7 +99,7 @@ GROUP BY order_id;
 --     LEFT JOIN (not INNER) so a missing customer/shipment/ticket record nulls
 --     a field instead of silently dropping the order row.
 --     (shipment and customer_support omitted here for brevity — see the full
---     five-domain join in dags/order_lookup_sample/domains/.../lookup/)
+--     five-domain join in include/sql/.../lookup/)
 CREATE OR REPLACE TABLE staging.sample_lookup_20240101 AS  -- date-sharded, isolates each run
 SELECT
     o.order_id, o.customer_id, o.order_date, o.order_status, o.total_amount,
@@ -115,7 +115,7 @@ LEFT JOIN staging.sample_order_items i ON o.order_id = i.order_id;
 -- ============================================================================
 
 -- 3.1 Duplicate check on the primary key, cheap and early — before the
---     expensive import step. (See utils/dq_utils.py: run_domain_dq_checks)
+--     expensive import step. (See include/utils/dq_utils.py: run_domain_dq_checks)
 --     TODO: replace with real query on the export/import staging data
 
 -- 3.2 Export the lookup table to object storage in shards (not streamed

@@ -1,0 +1,10 @@
+# Illustrative only — this repo is a structural reference, not a deployable
+# pipeline (see include/README.md). A real Astronomer/Airflow project pins
+# exact versions here; this lists what the stub code imports.
+
+apache-airflow>=2.7
+pyyaml>=6.0
+
+# A real implementation would add its warehouse and serving-DB clients, e.g.:
+#   google-cloud-bigquery
+#   psycopg2-binary
