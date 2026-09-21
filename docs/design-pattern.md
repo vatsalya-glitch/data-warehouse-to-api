@@ -144,5 +144,5 @@ It's a poor fit when: the application needs near-real-time freshness (this calls
 
 ## Seeing it as code
 
-- [`../examples/library_lending_walkthrough.sql`](../examples/library_lending_walkthrough.sql) — every phase above, as one SQL file, read top to bottom
-- [`../dags/library_lending_sample/`](../dags/library_lending_sample/) — the same pattern laid out as a real, config-driven Airflow project (one query per file, wired by `main.py`)
+- [`../examples/ecommerce_order_lookup_walkthrough.sql`](../examples/ecommerce_order_lookup_walkthrough.sql) — every phase above, as one SQL file, read top to bottom
+- [`../dags/order_lookup_sample/`](../dags/order_lookup_sample/) — the same pattern laid out as a real, config-driven Airflow project (one query per file, wired by `main.py`)

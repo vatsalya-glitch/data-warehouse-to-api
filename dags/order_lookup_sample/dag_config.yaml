@@ -1,0 +1,34 @@
+# DAG Configuration: What to build (not how to build it)
+# This file declares data-driven parameters and query files.
+# Adding a new domain query = adding one line here + creating one SQL file.
+# No Python code changes needed.
+
+# Business parameter: rolling lookback window (every domain query uses this)
+rolling_window_days: 90
+
+# DAG scheduling
+schedule_interval: "0 2 * * *"  # 2 AM UTC daily
+
+# Division: logical grouping of domains (one serving-DB table per division)
+# A division is one entity type (e.g., ecommerce orders, customer, device)
+division:
+  ecommerce_orders:
+    # Domain queries that build intermediate tables
+    # TRUNCATE + INSERT strategy: full refresh each run
+    # "orders" is the driving domain; the other four are LEFT JOINed onto it
+    domain_queries:
+      - warehouse/domain/orders.sql
+      - warehouse/domain/customer_attributes.sql
+      - warehouse/domain/order_items.sql
+      - warehouse/domain/shipment.sql
+      - warehouse/domain/customer_support.sql
+
+    # Final lookup assembly: joins all domains together
+    lookup_query: warehouse/lookup/ecommerce_orders_lookup.sql
+
+    # Primary key of the final lookup (used for DQ uniqueness check)
+    primary_key: order_id
+
+    # Data quality thresholds
+    min_rows: 10
+    allow_duplicate_keys: false

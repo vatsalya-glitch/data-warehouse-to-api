@@ -32,7 +32,7 @@ Describe:
 3. Create a feature branch: `git checkout -b feature/your-feature-name`
 
 ### Code Style
-- **SQL**: Follow the conventions in `examples/library_lending_walkthrough.sql` — uppercase keywords, clear indentation
+- **SQL**: Follow the conventions in `examples/ecommerce_order_lookup_walkthrough.sql` — uppercase keywords, clear indentation
 - **Python/Other**: Follow PEP 8 and project conventions
 - **Docs**: Keep examples and documentation up-to-date with code changes
 
@@ -85,8 +85,8 @@ We're cautious about:
 
 ### Adding a New Example
 1. Create a new file in `examples/` describing your warehouse + serving database combo
-2. Follow the pattern in `examples/library_lending_walkthrough.sql`:
-   - Same fictional domain (library lending) unless you have a strong reason to introduce a new one — this repo intentionally uses ONE domain everywhere so a reader never has to re-orient between files
+2. Follow the pattern in `examples/ecommerce_order_lookup_walkthrough.sql`:
+   - Same fictional domain (ecommerce order lookup) unless you have a strong reason to introduce a new one — this repo intentionally uses ONE domain everywhere so a reader never has to re-orient between files
    - Clear Phase 1, 2, 3 sections
    - Comments explaining warehouse-specific features
    - Inline Python/pseudocode where orchestration is needed
