@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv
+.env
+.env.local
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-workspace
+*.sublime-project
+
+# Secrets and credentials
+*.key
+*.pem
+*.p12
+.credentials
+.credentials/
+secrets/
+secrets.yaml
+config.local.yaml
+.env.*.local
+
+# Logs and temporary files
+*.log
+logs/
+*.tmp
+temp/
+tmp/
+*.tmp.*
+
+# Exports and data
+exports/
+data/export_*
+*.parquet
+*.csv
+.cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project-specific
+.claude/
+.claude/settings.local.json
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Config - keep example, ignore local configs
+config.yaml
+!config/config.example.yaml
