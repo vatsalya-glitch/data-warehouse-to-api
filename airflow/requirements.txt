@@ -1,0 +1,7 @@
+apache-airflow==2.7.3
+apache-airflow-providers-google==10.10.1
+apache-airflow-providers-postgres==5.9.0
+google-cloud-bigquery==3.13.0
+psycopg2-binary==2.9.9
+pyyaml==6.0.1
+python-dotenv==1.0.0
