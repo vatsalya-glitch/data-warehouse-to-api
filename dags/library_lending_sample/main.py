@@ -118,27 +118,37 @@ def _build_division_tasks(divisions_config: dict) -> list:
         #     sql = sql.format(rolling_window_days=rolling_window)
         # TODO: execute on warehouse with TRUNCATE+INSERT
 
-    def run_dq_checks(division_name: str, **context):
+    def run_dq_checks(division_name: str, primary_key: str, min_rows: int, **context):
         """
         Assert driving domain table is non-empty and has no duplicate keys.
         Fail if checks don't pass — don't proceed to final lookup.
+        SQL: domains/<division>/warehouse/dq/dq_lookup.sql
+
+        `primary_key` and `min_rows` come straight from this division's entry
+        in dag_config.yaml — changing a threshold there changes what this
+        check enforces, with no code change here.
         """
-        # TODO: replace with real queries
+        # TODO: replace with real queries (see utils.dq_utils.run_domain_dq_checks)
         context["task_instance"].log.info(
-            f"Running DQ checks for division: {division_name}"
+            f"Running DQ checks for division: {division_name} "
+            f"(primary_key={primary_key}, min_rows={min_rows})"
         )
         # TODO: query driving domain table
-        # - Check row count > min_rows
-        # - Check no duplicate primary keys
+        # - Check row count >= min_rows
+        # - Check no duplicate values in primary_key column
         # Raise exception if either check fails
 
-    def build_lookup(division_name: str, **context):
-        """Assemble final denormalized lookup via LEFT JOINs."""
+    def build_lookup(division_name: str, lookup_query: str, **context):
+        """
+        Assemble final denormalized lookup via LEFT JOINs.
+        SQL: domains/<division>/<lookup_query>  (path comes from dag_config.yaml)
+        """
         # TODO: replace with real query
         context["task_instance"].log.info(
-            f"Building final lookup for division: {division_name}"
+            f"Building final lookup for division: {division_name} "
+            f"using {lookup_query}"
         )
-        # TODO: execute assembly query from warehouse/lookup/<division>_lookup.sql
+        # TODO: execute the query at lookup_query against the warehouse
         # Result: one row per entity, with all enrichment columns
 
     division_groups = []
@@ -164,14 +174,21 @@ def _build_division_tasks(divisions_config: dict) -> list:
             dq = PythonOperator(
                 task_id="dq_checks",
                 python_callable=run_dq_checks,
-                op_kwargs={"division_name": division_name},
+                op_kwargs={
+                    "division_name": division_name,
+                    "primary_key": division_config["primary_key"],
+                    "min_rows": division_config.get("min_rows", 0),
+                },
             )
 
             # Final lookup (only if DQ passes)
             lookup = PythonOperator(
                 task_id="build_lookup",
                 python_callable=build_lookup,
-                op_kwargs={"division_name": division_name},
+                op_kwargs={
+                    "division_name": division_name,
+                    "lookup_query": division_config["lookup_query"],
+                },
             )
 
             domain_tasks >> dq >> lookup
@@ -196,22 +213,32 @@ def _build_serving_sync() -> TaskGroup:
     """
 
     def export_lookup_to_storage(**context):
-        """Export lookup table to object storage in shards."""
+        """
+        Export lookup table to object storage in shards.
+        SQL shape: domains/<division>/serving_db/sync/export_lookup_to_object_storage.sql
+        """
         # TODO: replace with real export logic
         context["task_instance"].log.info(
             "Exporting lookup table to object storage"
         )
-        # TODO: call warehouse export API (e.g., BigQuery.extract_table)
+        # TODO: call warehouse export API (e.g., BigQuery.extract_table),
+        # running the query in export_lookup_to_object_storage.sql
         # Output: sharded files in gs://bucket/path/
+        # Discover the resulting shard URIs with:
+        #   utils.serving_sync_utils.list_export_shards(...)
 
     def import_shards_to_staging(**context):
-        """Bulk-load shards into serving DB staging table."""
+        """
+        Bulk-load shards into serving DB staging table.
+        Staging table schema: domains/<division>/serving_db/sync/create_staging_table.sql
+        """
         # TODO: replace with real import logic
         context["task_instance"].log.info(
             "Importing shards to staging table"
         )
-        # TODO: for each shard in parallel (up to import_max_concurrency):
-        #   - COPY FROM shard into serving_db.staging_lookup
+        # TODO: first run create_staging_table.sql to get a fresh, empty staging table
+        # TODO: for each shard in parallel (up to infra_config["serving_db"]["import_max_concurrency"]):
+        #   - utils.serving_sync_utils.import_single_shard(conn, shard_uri, staging_table)
 
     def build_staging_indexes(**context):
         """Build indexes on staging table after bulk load."""
@@ -225,6 +252,7 @@ def _build_serving_sync() -> TaskGroup:
     def atomic_swap_and_reconcile(**context):
         """
         Atomic rename swap (staging → live) and reconcile row counts.
+        SQL: domains/<division>/serving_db/sync/swap_staging_to_live.sql
 
         The swap is a catalog-only operation (zero downtime):
           live_lookup → live_lookup_old
@@ -234,19 +262,20 @@ def _build_serving_sync() -> TaskGroup:
         context["task_instance"].log.info(
             "Performing atomic swap and reconciliation"
         )
-        # TODO: in one transaction:
-        #   - ALTER TABLE live_lookup RENAME TO live_lookup_old
-        #   - ALTER TABLE staging_lookup RENAME TO live_lookup
-        # TODO: query row counts on warehouse vs serving_db
-        # If row counts differ by > tolerance, log warning
+        # TODO: run swap_staging_to_live.sql inside one transaction
+        # TODO: utils.dq_utils.run_reconciliation_checks(...) —
+        # query row counts on warehouse vs serving_db, log warning if they diverge
 
     def cleanup_old_tables(**context):
-        """Drop previous cycle's backup table."""
+        """
+        Drop previous cycle's backup table.
+        SQL: domains/<division>/serving_db/sync/drop_old_table.sql
+        """
         # TODO: replace with real cleanup
         context["task_instance"].log.info(
             "Cleaning up old tables"
         )
-        # TODO: DROP TABLE live_lookup_old_old (keep one cycle only)
+        # TODO: run drop_old_table.sql (drops live_lookup_old_old, keeps one cycle only)
 
     with TaskGroup("serving_sync") as serving_group:
         export = PythonOperator(
@@ -291,7 +320,7 @@ default_args = {
 }
 
 dag = DAG(
-    "sample_360_library_lending",
+    "library_lending_sample",
     default_args=default_args,
     description="Sample: warehouse-to-serving-DB pipeline (structural reference)",
     schedule_interval=dag_config.get("schedule_interval", "0 2 * * *"),
@@ -299,16 +328,10 @@ dag = DAG(
     tags=["sample", "reference"],
 )
 
-# Build phases from config
-divisions = {
-    "library_branch_a": {
-        "domain_queries": [
-            "warehouse/domain/loan_records.sql",
-            "warehouse/domain/patron_profile.sql",
-            "warehouse/domain/book_inventory.sql",
-        ]
-    }
-}
+# Build phases from config — this is what makes the pipeline config-driven:
+# adding a division means adding an entry under `division:` in dag_config.yaml,
+# not touching this file.
+divisions = dag_config["division"]
 
 preflight = _build_preflight(divisions)
 build_phases = _build_division_tasks(divisions)

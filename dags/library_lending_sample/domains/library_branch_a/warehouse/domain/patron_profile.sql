@@ -1,9 +1,9 @@
 -- Phase 2: Build domain table — Patron Profile
 -- Enrichment domain: LEFT JOINed onto loans (driving domain)
 
-TRUNCATE TABLE staging.sample_360_patron_profile;
+TRUNCATE TABLE staging.sample_patron_profile;
 
-INSERT INTO staging.sample_360_patron_profile
+INSERT INTO staging.sample_patron_profile
 SELECT
     patron_id,
     patron_name,

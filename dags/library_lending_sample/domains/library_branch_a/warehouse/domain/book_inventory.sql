@@ -1,9 +1,9 @@
 -- Phase 2: Build domain table — Book Inventory
 -- Enrichment domain: LEFT JOINed onto loans (driving domain)
 
-TRUNCATE TABLE staging.sample_360_book_inventory;
+TRUNCATE TABLE staging.sample_book_inventory;
 
-INSERT INTO staging.sample_360_book_inventory
+INSERT INTO staging.sample_book_inventory
 SELECT
     book_id,
     book_title,

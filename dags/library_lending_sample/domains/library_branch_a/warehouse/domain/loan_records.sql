@@ -2,9 +2,9 @@
 -- Full refresh strategy: TRUNCATE + INSERT
 -- Dedup: one row per loan_id, latest by loan_date
 
-TRUNCATE TABLE staging.sample_360_loan_records;
+TRUNCATE TABLE staging.sample_loan_records;
 
-INSERT INTO staging.sample_360_loan_records
+INSERT INTO staging.sample_loan_records
 SELECT
     loan_id,
     patron_id,

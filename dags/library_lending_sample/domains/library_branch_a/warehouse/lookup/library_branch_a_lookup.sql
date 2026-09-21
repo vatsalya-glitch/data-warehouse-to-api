@@ -17,10 +17,10 @@ SELECT
     b.author,
     b.isbn,
     CURRENT_TIMESTAMP() as _loaded_at
-FROM staging.sample_360_loan_records l
-LEFT JOIN staging.sample_360_patron_profile p
+FROM staging.sample_loan_records l
+LEFT JOIN staging.sample_patron_profile p
     ON l.patron_id = p.patron_id
-LEFT JOIN staging.sample_360_book_inventory b
+LEFT JOIN staging.sample_book_inventory b
     ON l.book_id = b.book_id
 WHERE l.loan_id IS NOT NULL;
 

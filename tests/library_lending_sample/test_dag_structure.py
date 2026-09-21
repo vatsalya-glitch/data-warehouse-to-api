@@ -1,5 +1,5 @@
 """
-Placeholder test file for sample_360 DAG.
+Placeholder test file for library_lending_sample DAG.
 
 This is a reference structure only. Replace with real tests.
 """
@@ -16,7 +16,7 @@ def test_dag_loads():
 
     TODO: replace with real DAG tests
     """
-    dag_file = Path(__file__).parent.parent.parent / "dags" / "sample_360" / "main.py"
+    dag_file = Path(__file__).parent.parent.parent / "dags" / "library_lending_sample" / "main.py"
     assert dag_file.exists(), "DAG file not found"
 
 
@@ -26,7 +26,7 @@ def test_config_files_exist():
 
     TODO: replace with config validation
     """
-    dags_dir = Path(__file__).parent.parent.parent / "dags" / "sample_360"
+    dags_dir = Path(__file__).parent.parent.parent / "dags" / "library_lending_sample"
 
     required_files = [
         "dag_config.yaml",
@@ -45,7 +45,7 @@ def test_config_is_valid_yaml():
 
     TODO: replace with schema validation
     """
-    dags_dir = Path(__file__).parent.parent.parent / "dags" / "sample_360"
+    dags_dir = Path(__file__).parent.parent.parent / "dags" / "library_lending_sample"
 
     for config_file in ["dag_config.yaml", "infra_config.yaml"]:
         with open(dags_dir / config_file) as f:

@@ -20,10 +20,24 @@ Result: A lightweight serving database that applications query for millisecond-l
 
 ## Quick Start
 
-1. Read the [Design Pattern](docs/design-pattern.md) to understand the architecture
-2. Explore the [examples](examples/) for your warehouse and serving database
-3. Adapt the [config template](config/config.example.yaml) to your schema
-4. Deploy using your orchestration tool (Airflow, dbt Cloud, etc.)
+1. Read the [Design Pattern](docs/design-pattern.md) to understand the architecture and why each phase is shaped the way it is
+2. Read the [walkthrough](examples/library_lending_walkthrough.sql) — the same pattern as one linear SQL file, top to bottom
+3. Browse [`dags/library_lending_sample/`](dags/library_lending_sample/) — the same pattern laid out as an actual, config-driven Airflow project (real folder structure, real config files, one query per file)
+4. Adapt `dags/library_lending_sample/` to your own warehouse, serving database, and business domain
+
+## Repository Map
+
+Every doc and example in this repo uses the **same fictional domain — a library lending system** (loans, patrons, books) — so nothing needs re-explaining as you move between files. Three views of one pattern, in increasing order of concreteness:
+
+| Where | What it is | Read this when |
+|---|---|---|
+| [`docs/design-pattern.md`](docs/design-pattern.md) | The architecture explained in prose — the "why" behind each phase | You want to understand the pattern before writing any code |
+| [`examples/library_lending_walkthrough.sql`](examples/library_lending_walkthrough.sql) | One SQL file, Phase 1 → 2 → 3, read top to bottom | You want to see the whole flow in five minutes |
+| [`dags/library_lending_sample/`](dags/library_lending_sample/) | The same pattern as a real project layout — config files, one SQL file per query, an Airflow DAG that wires them together | You're about to build this for real and want a folder structure to copy |
+
+There is **one config system**, defined in `dags/library_lending_sample/dag_config.yaml` (what to build) and `infra_config.yaml` (how to connect) — see their inline comments and the [Config-Driven Parameters](docs/design-pattern.md#config-driven-parameters-not-hardcoded-literals) section of the design doc for the reasoning.
+
+Everything under `dags/library_lending_sample/` is an **illustrative stub**, not working code — SQL bodies are 2–5 lines and Python functions are interfaces with `# TODO` markers. It shows you the shape to build, not a pipeline to copy-paste and run.
 
 ## Key Features
 
@@ -70,8 +84,8 @@ Source tables (warehouse)
 ## Documentation
 
 - [Design Pattern](docs/design-pattern.md) — Complete technical guide
-- [Examples](examples/) — BigQuery + Postgres reference implementation
-- [Configuration](config/) — Config templates and parameters
+- [Walkthrough](examples/library_lending_walkthrough.sql) — Single-file, linear read of the full pattern
+- [Reference Pipeline](dags/library_lending_sample/) — The pattern as a real, config-driven Airflow project
 - [Reliability Checklist](docs/reliability-checklist.md) — Pre-production validation
 
 ## Contributing

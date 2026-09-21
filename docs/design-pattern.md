@@ -141,3 +141,8 @@ This looks trivial, but it's what turns "change the lookback window" from a mult
 This is a good fit when: the consuming application needs point lookups by a stable ID, some staleness (hours, not seconds) is acceptable, and the data volume is bounded enough that a full-refresh batch job completes comfortably within your scheduling window.
 
 It's a poor fit when: the application needs near-real-time freshness (this calls for a streaming/CDC pattern instead), the lookup needs ad-hoc filtering rather than point lookups by ID (that's what the warehouse itself, or a search index, is for), or data volume has grown large enough that full-refresh reprocessing no longer fits the schedule — at that point, incremental/CDC loading into the domain tables is the natural next evolution of this same three-phase shape.
+
+## Seeing it as code
+
+- [`../examples/library_lending_walkthrough.sql`](../examples/library_lending_walkthrough.sql) — every phase above, as one SQL file, read top to bottom
+- [`../dags/library_lending_sample/`](../dags/library_lending_sample/) — the same pattern laid out as a real, config-driven Airflow project (one query per file, wired by `main.py`)

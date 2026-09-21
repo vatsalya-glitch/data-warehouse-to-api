@@ -66,7 +66,7 @@ Use this checklist before deploying your batch pipeline to production.
 
 ## Configuration Management
 
-- [ ] All business parameters in one config file (YAML, TOML, or equivalent)
+- [ ] All business parameters live in config (YAML, TOML, or equivalent) — a "what to build" file and a "how to connect" file is fine (see `dags/library_lending_sample/dag_config.yaml` + `infra_config.yaml`); scattering the same parameter across many SQL files is not
 - [ ] No hardcoded literals in SQL queries:
   - [ ] Lookback window
   - [ ] Concurrency limits

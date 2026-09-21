@@ -7,11 +7,11 @@ warehouse:
   # TODO: replace with real warehouse type (bigquery, snowflake, etc.)
   type: bigquery
   project_id: sample-warehouse-project
-  dataset_id: sample_360_lending
+  dataset_id: sample_lending
 
 object_storage:
   # Where to export lookup tables for import into serving DB
-  bucket: sample-360-pipeline-exports
+  bucket: library-lending-sample-exports
   export_folder: library_branch_a/exports
   # File format for exports (parquet or csv)
   export_format: parquet
@@ -23,7 +23,7 @@ serving_db:
   type: postgres
   host: serving-db.example.internal
   port: 5432
-  database: sample_360_lookups
+  database: sample_lookups
 
   # Import tuning: concurrent shard imports
   import_max_concurrency: 2

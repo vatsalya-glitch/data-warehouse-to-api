@@ -1,4 +1,4 @@
-"""Serving database sync utilities for sample_360 pipeline.
+"""Serving database sync utilities for library_lending_sample pipeline.
 
 This module contains stub interfaces for export, import, and lifecycle tasks.
 Replace all TODO sections with real storage and database operations.
@@ -14,7 +14,7 @@ def list_export_shards(storage_bucket: str, export_folder: str) -> List[str]:
     This is called before parallel import to discover what shards were created.
 
     Args:
-        storage_bucket: Bucket name (e.g., "sample-360-pipeline-exports")
+        storage_bucket: Bucket name (e.g., "library-lending-sample-exports")
         export_folder: Folder within bucket (e.g., "library_branch_a/exports")
 
     Returns:

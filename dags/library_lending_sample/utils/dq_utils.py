@@ -1,4 +1,4 @@
-"""Data quality utilities for sample_360 pipeline.
+"""Data quality utilities for library_lending_sample pipeline.
 
 This module contains stub interfaces for data quality checks.
 Replace all TODO sections with real warehouse queries.

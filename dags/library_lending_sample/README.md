@@ -1,8 +1,10 @@
-# Sample Airflow Pipeline: Warehouse to Serving Database
+# Reference Pipeline: Library Lending Lookup
 
-**Purpose**: This is a STRUCTURAL REFERENCE implementation, not a working pipeline. It demonstrates the three-phase pattern for syncing denormalized warehouse data into a fast, read-optimized serving database.
+**Purpose**: This is a STRUCTURAL REFERENCE implementation, not a working pipeline. It demonstrates the three-phase pattern described in [`../../docs/design-pattern.md`](../../docs/design-pattern.md), laid out as an actual, config-driven Airflow project.
 
-**Example domain**: Library lending system (loans, patrons, books). Replace all business logic with real data.
+**Example domain**: Library lending system (loans, patrons, books) — fictional, used consistently across this whole repository. Replace all business logic with real data.
+
+**Where this fits in the repo**: see the "Repository Map" in the [root README](../../README.md) for how this concrete implementation relates to `docs/` (concept) and `examples/` (single-file walkthrough).
 
 ## The Pattern in Three Phases
 
@@ -39,39 +41,43 @@ Run only after build passes. Sync to serving database, zero downtime:
 
 ## Folder Layout
 
+Every file below actually exists in this directory — this list is generated to match the real tree, not aspirational.
+
 ```
-dags/sample_360/
-├── main.py                                    # DAG with three builder functions
-├── dag_config.yaml                            # What to build (data-driven config)
-├── infra_config.yaml                          # How to connect (credentials, tunables)
+dags/library_lending_sample/
+├── README.md                                  # This file
+├── main.py                                    # DAG: 3 builder functions, wired at the bottom
+├── dag_config.yaml                            # What to build (divisions, domain queries, thresholds)
+├── infra_config.yaml                          # How to connect (connection IDs, tunables)
 ├── utils/
 │   ├── dq_utils.py                           # Data quality check interfaces (stubs)
 │   └── serving_sync_utils.py                 # Export/import/swap interfaces (stubs)
-└── domains/library_branch_a/
+└── domains/library_branch_a/                  # One folder per division (see dag_config.yaml)
     ├── warehouse/
     │   ├── ddl/
-    │   │   ├── loan_records.sql              # Fresh schema for loan domain
-    │   │   ├── patron_profile.sql
-    │   │   └── book_inventory.sql
+    │   │   └── loan_records.sql              # CREATE OR REPLACE — fresh schema, run in preflight
     │   ├── domain/
-    │   │   ├── loan_records.sql              # TRUNCATE + INSERT query
-    │   │   ├── patron_profile.sql
-    │   │   └── book_inventory.sql
+    │   │   ├── loan_records.sql              # TRUNCATE + INSERT — driving domain
+    │   │   ├── patron_profile.sql            # TRUNCATE + INSERT — enrichment
+    │   │   └── book_inventory.sql            # TRUNCATE + INSERT — enrichment
     │   ├── lookup/
     │   │   └── library_branch_a_lookup.sql   # Final LEFT JOIN assembly
     │   └── dq/
-    │       └── dq_lookup.sql                 # Data quality assertion query
+    │       └── dq_lookup.sql                 # Non-empty + unique-key assertion
     └── serving_db/
         ├── ddl/
-        │   └── serving_ddl.sql               # Live table schema
+        │   └── serving_ddl.sql               # Live table schema (created once)
         └── sync/
-            ├── create_staging_table.sql      # Fresh staging table
+            ├── create_staging_table.sql      # Fresh staging table, dropped/recreated each run
+            ├── export_lookup_to_object_storage.sql  # Sharded export from warehouse
             ├── swap_staging_to_live.sql      # Atomic rename swap
-            └── cleanup_old_table.sql         # Drop previous-previous cycle
+            └── drop_old_table.sql            # Drop the table from two cycles ago
 
-tests/sample_360/
+tests/library_lending_sample/
 └── test_dag_structure.py                      # Placeholder test file
 ```
+
+**Note**: only `loan_records.sql` has a DDL file under `warehouse/ddl/` in this reference — a real project would have one DDL file per domain table (`patron_profile.sql`, `book_inventory.sql` too). This is a deliberate gap left in the reference: it's the same file shape repeated, so one example stands for all three.
 
 ## Config-Driven: No Python Code Changes to Add Data
 
@@ -115,10 +121,10 @@ This is a **structural template**, not a working implementation.
 - All Python functions have TODO comments marking where to replace with real code
 - Example domain is fictional (library lending) to avoid confusion with real tables
 - No credentials, project IDs, or real hostnames (use config files instead)
-- This demonstrates ONE division/entity type; scale to multiple divisions by adding `domain_configs` entries
+- This demonstrates ONE division/entity type; scale to multiple divisions by adding entries under `division:` in `dag_config.yaml`
 
 ## See Also
 
-- **`../design-pattern.md`** — Full architecture rationale
-- **`../examples/bigquery_postgres_example.sql`** — Working example with real-looking queries
-- **`../reliability-checklist.md`** — Pre-production validation
+- **[`../../docs/design-pattern.md`](../../docs/design-pattern.md)** — Full architecture rationale (the "why" behind every phase here)
+- **[`../../examples/library_lending_walkthrough.sql`](../../examples/library_lending_walkthrough.sql)** — The same pattern as one linear SQL file, same domain, easier to read start-to-finish
+- **[`../../docs/reliability-checklist.md`](../../docs/reliability-checklist.md)** — Pre-production validation checklist
