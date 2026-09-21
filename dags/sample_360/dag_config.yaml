@@ -1,0 +1,31 @@
+# DAG Configuration: What to build (not how to build it)
+# This file declares data-driven parameters and query files.
+# Adding a new domain query = adding one line here + creating one SQL file.
+# No Python code changes needed.
+
+# Business parameter: rolling lookback window (every domain query uses this)
+rolling_window_days: 90
+
+# DAG scheduling
+schedule_interval: "0 2 * * *"  # 2 AM UTC daily
+
+# Division: logical grouping of domains (one serving-DB table per division)
+# A division is one entity type (e.g., library branch, customer, device)
+division:
+  library_branch_a:
+    # Domain queries that build intermediate tables
+    # TRUNCATE + INSERT strategy: full refresh each run
+    domain_queries:
+      - warehouse/domain/loan_records.sql
+      - warehouse/domain/patron_profile.sql
+      - warehouse/domain/book_inventory.sql
+
+    # Final lookup assembly: joins all domains together
+    lookup_query: warehouse/lookup/library_branch_a_lookup.sql
+
+    # Primary key of the final lookup (used for DQ uniqueness check)
+    primary_key: loan_id
+
+    # Data quality thresholds
+    min_rows: 10
+    allow_duplicate_keys: false
