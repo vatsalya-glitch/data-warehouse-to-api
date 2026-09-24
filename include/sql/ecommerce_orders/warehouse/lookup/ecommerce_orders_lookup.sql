@@ -3,10 +3,10 @@
 -- order_items, shipment, customer_support). Uses LEFT JOINs to prevent
 -- silent row loss.
 --
--- Note the two different join keys: order_items and shipment join on
--- order_id (they describe the order itself), while customer_attributes and
--- customer_support join on customer_id (they describe the customer, and
--- are the same for every order that customer has placed).
+-- Note the two different join keys: order_items, shipment, and
+-- customer_support all join on order_id (they describe the order itself),
+-- while customer_attributes joins on customer_id (it describes the
+-- customer, and is the same for every order that customer has placed).
 --
 -- This file is a plain SELECT, not a CREATE TABLE: pipeline/build.py wraps
 -- it as `CREATE OR REPLACE TABLE sample_lookup_current AS <this select>`,
@@ -41,5 +41,5 @@ LEFT JOIN sample_order_items i
 LEFT JOIN sample_shipment s
     ON o.order_id = s.order_id
 LEFT JOIN sample_customer_support t
-    ON o.customer_id = t.customer_id
+    ON o.order_id = t.order_id
 WHERE o.order_id IS NOT NULL

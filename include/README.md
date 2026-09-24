@@ -57,7 +57,7 @@ Runs only after preflight passes:
    - `customer_attributes` — customer profile, joins on `customer_id`
    - `order_items` — line items, **aggregated** (`GROUP BY`, not deduped) to one row per `order_id`
    - `shipment` — latest shipment status, joins on `order_id`
-   - `customer_support` — open ticket summary, joins on `customer_id`
+   - `customer_support` — open ticket count **for this order specifically**, **aggregated** (`GROUP BY`, not deduped) to one row per `order_id`
 2. Data-quality gate: driving domain (`orders`) must be non-empty and have unique `order_id`. Raises `DataQualityError` if not — **the lookup table is never rebuilt on a bad run**, so a failure leaves yesterday's good lookup table in place.
 3. Final assembly: LEFT JOIN all four enrichment domains onto `orders`.
 
@@ -113,7 +113,7 @@ include/
             └── drop_old_table.sql            # Documents cleanup; folded into rotate_and_swap too
 ```
 
-**Two flattening techniques, side by side**: `customer_attributes`, `shipment`, and `customer_support` collapse to one row per key with `QUALIFY ROW_NUMBER() ... = 1` (pick the latest record). `order_items` is naturally many rows per order, so it collapses with `GROUP BY order_id` (aggregate the children) instead — see the comment at the top of `order_items.sql` for why the technique differs.
+**Two flattening techniques, side by side**: `customer_attributes` and `shipment` collapse to one row per key with `QUALIFY ROW_NUMBER() ... = 1` (pick the latest record). `order_items` and `customer_support` are both naturally many rows per order (multiple line items; multiple tickets filed about the same order), so they collapse with `GROUP BY order_id` (aggregate the children) instead — see the comment at the top of `order_items.sql` for why the technique differs.
 
 ## Config-Driven: No Python Code Changes to Add Data
 
@@ -140,7 +140,7 @@ No changes to `pipeline/*.py` or `dags/order_lookup_sample.py` needed for any of
 | Three hard gates (preflight → build → serve) | Single long script | Fail early before writes; each phase is independently testable (see `tests/pipeline/`) |
 | DDL files as schema *contracts*, checked by preflight | No separate schema declaration | Catches drift between "what we said this table looks like" and what the query actually returns, before any real data moves |
 | LEFT JOIN from driving domain (`orders`) | INNER JOIN all domains | An order with no shipment record yet still appears in the lookup, with null shipment fields, instead of vanishing |
-| GROUP BY for `order_items`, QUALIFY for the rest | One dedup technique everywhere | The right collapse strategy depends on whether the source is naturally many-to-one (aggregate) or one-of-many-versions (pick latest) |
+| GROUP BY for `order_items`/`customer_support`, QUALIFY for `customer_attributes`/`shipment` | One dedup technique everywhere | The right collapse strategy depends on whether the source is naturally many-to-one (aggregate) or one-of-many-versions (pick latest) |
 | Atomic rename swap with two-cycle rotation | TRUNCATE + re-insert | Zero downtime; live table never empty or half-updated; one prior cycle always available for manual rollback |
 
 ## Notes

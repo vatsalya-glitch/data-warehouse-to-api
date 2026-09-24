@@ -19,6 +19,16 @@ def _sqlite_safe(value):
     DuckDB -> pandas produces pandas.Timestamp for DATE/TIMESTAMP columns,
     and either NaN or pandas.NA for nulls depending on the column's dtype;
     sqlite3 only binds None, int, float, str, and bytes.
+
+    Any integer column with at least one NULL becomes pandas' nullable
+    Int32/Int64 dtype, and its non-null values come through as
+    numpy.int32/int64 objects, not plain Python int. sqlite3 doesn't
+    recognize those -- it silently stores them as raw BLOBs via numpy's
+    buffer protocol instead of INTEGER, with no error. Caught this because
+    open_ticket_count has real NULLs (most orders have no ticket); a
+    column that happens to never be NULL in the sample data (like
+    item_count) hid the same latent bug by luck. `.item()` unwraps any
+    numpy scalar to its native Python type.
     """
     if value is None:
         return None
@@ -26,6 +36,8 @@ def _sqlite_safe(value):
         return None
     if hasattr(value, "isoformat"):
         return value.isoformat(sep=" ")
+    if hasattr(value, "item"):
+        return value.item()
     return value
 
 

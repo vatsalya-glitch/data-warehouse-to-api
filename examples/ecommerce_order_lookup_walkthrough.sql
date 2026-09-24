@@ -16,7 +16,7 @@
 --   customer_attributes — customer profile (enrichment, joins on customer_id)
 --   order_items         — line items, aggregated to one row per order (enrichment)
 --   shipment            — latest shipment status per order (enrichment)
---   customer_support    — open ticket summary per customer (enrichment)
+--   customer_support    — open ticket summary per order (enrichment)
 --
 -- Warehouse: BigQuery (illustrative). Serving DB: Postgres (illustrative).
 -- Every SQL block below is a minimal stub — replace with real tables/columns.

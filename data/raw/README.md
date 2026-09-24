@@ -10,7 +10,7 @@ These are committed, static files — not generated at run time. They were produ
 | `orders.csv` | `raw_orders` | 800 | References only customer IDs that exist in `customers.csv` |
 | `order_items.csv` | `raw_order_items` | ~1,960 | 1–4 line items per order — deliberately many-to-one, so `order_items.sql` has to `GROUP BY` rather than dedup |
 | `shipment_events.csv` | `raw_shipment_events` | ~1,165 | ~85% of orders have at least one event, some have 2–3 (dedup to latest); the other ~15% have **none** on purpose — this is what makes the LEFT JOIN nulls in the final lookup real |
-| `support_tickets.csv` | `raw_support_tickets` | ~120 | ~20% of customers have 1–2 tickets, mostly closed, some open |
+| `support_tickets.csv` | `raw_support_tickets` | ~150 | ~15% of orders have 1–2 tickets filed against them specifically (order-scoped, not just customer-scoped — `order_id` is a real column here), mostly closed, some open; `created_at` is anchored after that order's `order_date` |
 
 ## A caveat worth knowing: dates are fixed, not relative to "today"
 
