@@ -5,13 +5,12 @@ DuckDB + SQLite files (never the real warehouse.duckdb / serving.db).
 
 import copy
 
-import duckdb
 import pytest
 
 from pipeline.build import DataQualityError, run_build, run_data_quality_gate
 from pipeline.config import load_config
+from pipeline.load_raw_data import load_raw_data
 from pipeline.preflight import PreflightError, run_preflight
-from pipeline.seed import seed_warehouse
 from pipeline.serve import run_serve
 from pipeline.serving_db import ServingDB
 from pipeline.warehouse import Warehouse
@@ -39,8 +38,8 @@ def infra_config(tmp_path):
 
 @pytest.fixture
 def seeded_warehouse(infra_config):
-    seed_warehouse(infra_config["warehouse"]["duckdb_path"])
     with Warehouse(infra_config["warehouse"]["duckdb_path"]) as warehouse:
+        load_raw_data(warehouse)  # loads the static files under data/raw/
         yield warehouse
 
 

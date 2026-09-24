@@ -7,6 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 INCLUDE_DIR = PROJECT_ROOT / "include"
 SQL_DIR = INCLUDE_DIR / "sql"
 CONFIG_DIR = INCLUDE_DIR / "config"
+RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
 
 def load_config() -> tuple[dict, dict]:

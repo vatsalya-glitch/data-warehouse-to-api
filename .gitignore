@@ -60,10 +60,13 @@ tmp/
 
 # Exports and data
 exports/
-data/export_*
 *.parquet
-*.csv
 .cache/
+
+# CSVs are ignored by default (exports, scratch data) EXCEPT data/raw/,
+# which is committed source data the pipeline reads -- see data/raw/README.md
+*.csv
+!data/raw/*.csv
 
 # OS files
 .DS_Store
@@ -76,7 +79,7 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Generated at runtime by pipeline/run.py -- the warehouse and serving DB
-# are built fresh from pipeline/seed.py, never committed
+# Generated at runtime by pipeline/run.py -- rebuilt from data/raw/*.csv
+# on every run, never committed
 *.duckdb
 serving.db

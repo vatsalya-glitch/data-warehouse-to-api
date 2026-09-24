@@ -2,16 +2,17 @@
 CLI entrypoint: python -m pipeline.run
 
 Runs the full three-phase pipeline for every division in dag_config.yaml.
-Seeds the warehouse with synthetic data on first run (if warehouse.duckdb
-doesn't exist yet).
+Loads data/raw/*.csv into the warehouse at the start of every run -- this
+is idempotent (CREATE OR REPLACE TABLE) and cheap at this data volume, so
+the warehouse can never drift out of sync with the checked-in raw data.
 """
 
 import sys
 
 from pipeline.build import DataQualityError, run_build
 from pipeline.config import load_config, resolve_path
+from pipeline.load_raw_data import load_raw_data
 from pipeline.preflight import PreflightError, run_preflight
-from pipeline.seed import seed_warehouse
 from pipeline.serve import ReconciliationWarning, run_serve
 from pipeline.warehouse import Warehouse
 
@@ -20,9 +21,9 @@ def main() -> None:
     dag_config, infra_config = load_config()
     duckdb_path = resolve_path(infra_config["warehouse"]["duckdb_path"])
 
-    if not duckdb_path.exists():
-        print(f"No warehouse found at {duckdb_path} — seeding sample data...")
-        seed_warehouse(str(duckdb_path))
+    with Warehouse(duckdb_path) as warehouse:
+        print("Loading raw data (data/raw/*.csv)...")
+        load_raw_data(warehouse)
         print()
 
     for division_name in dag_config["division"]:
