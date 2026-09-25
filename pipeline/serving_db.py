@@ -1,7 +1,7 @@
 """Serving database operations (SQLite) — the real implementation behind Phase 3.
 
 SQLite stands in for the production serving database (Postgres/MySQL) so
-the pipeline runs locally with no server. See include/README.md. It's
+the pipeline runs locally with no server. See docs/implementation.md. It's
 deliberately a different engine from the warehouse (DuckDB) — the whole
 point of the pattern is that the warehouse and the serving store are
 different tools for different jobs.
@@ -49,7 +49,7 @@ class ServingDB:
     def __init__(self, sqlite_path: str | Path):
         # isolation_level=None (autocommit) so the explicit BEGIN/COMMIT in
         # rotate_and_swap controls the transaction, not Python's own
-        # implicit one — see include/sql/.../swap_staging_to_live.sql
+        # implicit one — see sql/.../swap_staging_to_live.sql
         self.conn = sqlite3.connect(str(sqlite_path), isolation_level=None)
 
     def read_sql(self, path: Path, **format_kwargs) -> str:

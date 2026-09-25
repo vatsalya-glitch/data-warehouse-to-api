@@ -1,7 +1,7 @@
 """Warehouse operations (DuckDB) — the real implementation behind Phase 1 and 2.
 
 DuckDB stands in for the production warehouse (BigQuery/Snowflake/Redshift)
-so the pipeline runs locally with no server. See include/README.md.
+so the pipeline runs locally with no server. See docs/implementation.md.
 """
 
 import re

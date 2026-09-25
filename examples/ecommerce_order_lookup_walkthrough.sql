@@ -8,8 +8,8 @@
 --
 -- This file is illustrative, not runnable -- for a REAL, runnable
 -- implementation of this exact pattern (DuckDB + SQLite, no external
--- services, actually tested), see pipeline/ and include/sql/ instead.
--- See include/README.md for why DuckDB/SQLite stand in for BigQuery/Postgres.
+-- services, actually tested), see pipeline/ and sql/ instead.
+-- See docs/implementation.md for why DuckDB/SQLite stand in for BigQuery/Postgres.
 --
 -- Domain (fictional, for illustration only):
 --   orders              — the "driving" table — defines which entities are in scope
@@ -28,7 +28,7 @@
 -- ============================================================================
 
 -- 1.1 Fresh schema for every domain table (CREATE OR REPLACE, not written by hand
---     each run — see include/sql/.../warehouse/ddl/)
+--     each run — see sql/.../warehouse/ddl/)
 CREATE OR REPLACE TABLE staging.sample_orders (
     order_id     STRING,
     customer_id  STRING,
@@ -39,7 +39,7 @@ CREATE OR REPLACE TABLE staging.sample_orders (
 
 -- 1.2 Dry-run the domain INSERT query against that fresh schema.
 --     BigQuery: jobConfig.dryRun = true — validates types/columns, scans nothing.
---     (See include/utils/dq_utils.py: validate_insert_schema)
+--     (See pipeline/warehouse.py: Warehouse.dry_run)
 SELECT * FROM (
     -- the real INSERT's SELECT body goes here
     SELECT order_id, customer_id, order_date, order_status, total_amount
@@ -101,7 +101,7 @@ GROUP BY order_id;
 --     LEFT JOIN (not INNER) so a missing customer/shipment/ticket record nulls
 --     a field instead of silently dropping the order row.
 --     (shipment and customer_support omitted here for brevity — see the full
---     five-domain join in include/sql/.../lookup/)
+--     five-domain join in sql/.../lookup/)
 CREATE OR REPLACE TABLE staging.sample_lookup_20240101 AS  -- date-sharded, isolates each run
 SELECT
     o.order_id, o.customer_id, o.order_date, o.order_status, o.total_amount,
@@ -117,7 +117,7 @@ LEFT JOIN staging.sample_order_items i ON o.order_id = i.order_id;
 -- ============================================================================
 
 -- 3.1 Duplicate check on the primary key, cheap and early — before the
---     expensive import step. (See include/utils/dq_utils.py: run_domain_dq_checks)
+--     expensive import step. (See pipeline/build.py: run_data_quality_gate)
 --     TODO: replace with real query on the export/import staging data
 
 -- 3.2 Export the lookup table to object storage in shards (not streamed

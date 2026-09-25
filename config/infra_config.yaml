@@ -31,7 +31,7 @@ serving_db:
   # Import tuning: concurrent shard imports.
   # SQLite writes are single-writer, so this pipeline imports shards
   # sequentially regardless of this value -- it's kept here because a
-  # real Postgres target would honor it (see include/README.md).
+  # real Postgres target would honor it (see docs/implementation.md).
   import_max_concurrency: 2
 
   # Indexes to build on staging table (after bulk load, not before)

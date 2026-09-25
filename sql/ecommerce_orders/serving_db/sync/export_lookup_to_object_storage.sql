@@ -3,8 +3,8 @@
 -- here under serving_db/sync/ since it's conceptually part of the
 -- serving-sync process. Decouples export speed from import speed.
 --
--- Locally, "object storage" is a folder (include/config/infra_config.yaml
--- -> object_storage.export_dir) instead of GCS/S3 — see include/README.md.
+-- Locally, "object storage" is a folder (config/infra_config.yaml
+-- -> object_storage.export_dir) instead of GCS/S3 — see docs/implementation.md.
 -- {export_path} is substituted by pipeline/serve.py.
 
 COPY sample_lookup_current TO '{export_path}' (FORMAT PARQUET);

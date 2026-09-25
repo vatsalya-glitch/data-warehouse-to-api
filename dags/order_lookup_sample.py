@@ -11,10 +11,10 @@ standalone runner.
 Requires apache-airflow (see requirements-airflow.txt). This is NOT
 required to run the pipeline itself -- Airflow here is the production
 orchestration reference; see pipeline/run.py for the local runner that
-requirements.txt alone supports. See include/README.md for why dags/
-and include/ are split, and docs/design-pattern.md for the pattern this
-implements in production terms (targeting BigQuery/Snowflake + Postgres
-rather than DuckDB/SQLite).
+requirements.txt alone supports. See docs/implementation.md for why
+DAG files live in dags/ and nothing else does, and docs/design-pattern.md
+for the pattern this implements in production terms (targeting
+BigQuery/Snowflake + Postgres rather than DuckDB/SQLite).
 """
 
 from datetime import datetime, timedelta

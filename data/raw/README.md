@@ -16,7 +16,7 @@ These are committed, static files — not generated at run time. They were produ
 
 Dates in these files are anchored to a fixed reference point (2026-09-24), not generated relative to whenever you happen to clone the repo. That's a direct consequence of being static files instead of a generator that runs fresh each time.
 
-The domain query `include/sql/ecommerce_orders/warehouse/domain/orders.sql` filters `WHERE order_date >= CURRENT_DATE - INTERVAL {rolling_window_days} DAY`, using the *real* current date at pipeline run time — not the fixed anchor these files were generated against. As real time passes beyond `rolling_window_days` (currently 90, in `include/config/dag_config.yaml`) past the anchor date, this data will start falling outside the window, and eventually the driving domain will be empty and the pipeline's data-quality gate will correctly refuse to build the lookup.
+The domain query `sql/ecommerce_orders/warehouse/domain/orders.sql` filters `WHERE order_date >= CURRENT_DATE - INTERVAL {rolling_window_days} DAY`, using the *real* current date at pipeline run time — not the fixed anchor these files were generated against. As real time passes beyond `rolling_window_days` (currently 90, in `config/dag_config.yaml`) past the anchor date, this data will start falling outside the window, and eventually the driving domain will be empty and the pipeline's data-quality gate will correctly refuse to build the lookup.
 
 This isn't fixed yet — it's a known tradeoff of switching from a live generator to static fixtures, flagged for a deliberate decision (e.g., a much longer window, or anchoring the window to the data's own max date instead of `CURRENT_DATE`) rather than silently working around it.
 

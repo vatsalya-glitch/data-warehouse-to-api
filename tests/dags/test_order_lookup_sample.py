@@ -3,16 +3,15 @@ Placeholder test file for the order_lookup_sample DAG.
 
 This is a reference structure only. Replace with real tests.
 Layout mirrors the Astronomer/Airflow convention: tests/dags/ tests the
-files in dags/, against config and SQL that live under include/.
+files in dags/, against config/ and sql/ at the repo root.
 """
 
 import pytest
-from pathlib import Path
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+from pipeline.config import CONFIG_DIR, PROJECT_ROOT, SQL_DIR
+
 DAGS_DIR = PROJECT_ROOT / "dags"
-INCLUDE_DIR = PROJECT_ROOT / "include"
 
 
 def test_dag_file_exists():
@@ -28,14 +27,12 @@ def test_dag_file_exists():
 
 def test_config_files_exist():
     """
-    Verify required config files exist under include/config/.
+    Verify required config files exist under config/.
 
     TODO: replace with config validation
     """
-    config_dir = INCLUDE_DIR / "config"
-
     for filename in ["dag_config.yaml", "infra_config.yaml"]:
-        filepath = config_dir / filename
+        filepath = CONFIG_DIR / filename
         assert filepath.exists(), f"Missing required file: {filename}"
 
 
@@ -45,10 +42,8 @@ def test_config_is_valid_yaml():
 
     TODO: replace with schema validation
     """
-    config_dir = INCLUDE_DIR / "config"
-
     for config_file in ["dag_config.yaml", "infra_config.yaml"]:
-        with open(config_dir / config_file) as f:
+        with open(CONFIG_DIR / config_file) as f:
             try:
                 yaml.safe_load(f)
             except yaml.YAMLError as e:
@@ -58,15 +53,15 @@ def test_config_is_valid_yaml():
 def test_domain_sql_files_exist():
     """
     Verify every domain_queries and lookup_query path in dag_config.yaml
-    resolves to a real file under include/sql/.
+    resolves to a real file under sql/.
 
     TODO: extend to cover ddl/ and dq/ paths too
     """
-    with open(INCLUDE_DIR / "config" / "dag_config.yaml") as f:
+    with open(CONFIG_DIR / "dag_config.yaml") as f:
         dag_config = yaml.safe_load(f)
 
     for division_name, division_config in dag_config["division"].items():
-        division_sql_dir = INCLUDE_DIR / "sql" / division_name
+        division_sql_dir = SQL_DIR / division_name
 
         for query_path in division_config.get("domain_queries", []):
             assert (division_sql_dir / query_path).exists(), (

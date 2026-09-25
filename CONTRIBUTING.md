@@ -38,13 +38,13 @@ Describe:
 4. Create a feature branch: `git checkout -b feature/your-feature-name`
 
 ### Code Style
-- **SQL**: Follow the conventions in `include/sql/ecommerce_orders/` (real, DuckDB/SQLite-dialect queries) or `examples/ecommerce_order_lookup_walkthrough.sql` (production-flavored, BigQuery/Postgres dialect) depending on which you're touching — uppercase keywords, clear indentation
+- **SQL**: Follow the conventions in `sql/ecommerce_orders/` (real, DuckDB/SQLite-dialect queries) or `examples/ecommerce_order_lookup_walkthrough.sql` (production-flavored, BigQuery/Postgres dialect) depending on which you're touching — uppercase keywords, clear indentation
 - **Python**: Follow PEP 8 and project conventions; keep business logic in `pipeline/`, not in `dags/order_lookup_sample.py` (which should only ever call `pipeline/` functions)
 - **Docs**: Keep examples and documentation up-to-date with code changes
 
 ### Testing
 - `pytest tests/` runs real end-to-end tests against temporary DuckDB + SQLite files (never the real `warehouse.duckdb`/`serving.db`) — run this before opening a PR
-- If you change a SQL file under `include/sql/`, run `python -m pipeline.run` to confirm it against real (seeded) data, not just `pytest`
+- If you change a SQL file under `sql/`, run `python -m pipeline.run` to confirm it against real data, not just `pytest`
 - If modifying documentation, check that links and references still work
 - For new features, update the reliability checklist if applicable
 

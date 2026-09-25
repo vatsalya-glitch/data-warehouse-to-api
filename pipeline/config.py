@@ -4,9 +4,8 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-INCLUDE_DIR = PROJECT_ROOT / "include"
-SQL_DIR = INCLUDE_DIR / "sql"
-CONFIG_DIR = INCLUDE_DIR / "config"
+SQL_DIR = PROJECT_ROOT / "sql"
+CONFIG_DIR = PROJECT_ROOT / "config"
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 
 
